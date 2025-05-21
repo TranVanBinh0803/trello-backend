@@ -1,11 +1,13 @@
 import { StatusCodes } from "http-status-codes";
 import Joi from "joi";
 import ApiError from "~/utils/ApiError";
+import { BOARD_TYPES } from "~/utils/constants";
 
 const createNew = async (req, res, next) => {
   const correctValidation = Joi.object({
     title: Joi.string().required().min(3).max(50).trim().strict(),
     description: Joi.string().required().min(3).max(250).trim().strict(),
+    type: Joi.string().valid(BOARD_TYPES.PUBLIC,BOARD_TYPES.PRIVATE).required()
   });
   try {
     await correctValidation.validateAsync(req.body, { abortEarly: false });
