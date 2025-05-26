@@ -5,6 +5,9 @@ import { columnValidation } from "~/validations/columnValidation";
 const Router = express.Router();
 
 Router.route("/")
-  .post(columnValidation.createNew, columnController.createNew);
-
+  .post(columnValidation.createNew, columnController.createNew)
+  .put(columnValidation.dragCard, columnController.dragCard);
+  
+Router.route("/between-column")
+  .put(columnValidation.dragCardBetweenColumn, columnController.dragCardBetweenColumn);
 export const columnRoute = Router;

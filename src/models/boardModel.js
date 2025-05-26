@@ -85,6 +85,20 @@ const updateColumnOrderIds = async (boardId, columnId) => {
   }
 };
 
+const dragColumn = async (boardId, newColumnOrderIds) => {
+  try {
+    return await GET_DB()
+      .collection(BOARD_COLLECTION_NAME)
+      .findOneAndUpdate(
+        { _id: new ObjectId(boardId) },
+        { $set: { columnOrderIds: newColumnOrderIds } },
+        { returnDocument: "after" }
+      );
+  } catch (error) {
+    throw new Error(error);
+  }
+};
+
 const validateBeforeCreate = async (data) => {
   return await BOARD_COLLECTION_SCHEMA.validateAsync(data, {
     abortEarly: false,
@@ -98,4 +112,5 @@ export const boardModel = {
   findOneById,
   getDetails,
   updateColumnOrderIds,
+  dragColumn
 };

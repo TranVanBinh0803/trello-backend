@@ -42,7 +42,34 @@ const getDetails = async (boardId) => {
   }
 };
 
+const dragColumn = async (boardId, columnOrderIds) => {
+  try {
+
+    if (!ObjectId.isValid(boardId)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid boardId!');
+    }
+    
+    const board = await boardModel.findOneById(new ObjectId(boardId));
+    if (!board) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
+    }
+
+    const objectIdArray = columnOrderIds.map(id => new ObjectId(id));
+
+    const updatedBoard = await boardModel.dragColumn(boardId, objectIdArray);
+    
+    if (!updatedBoard) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "Board update failed!");
+    }
+
+    return updatedBoard;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const boardService = {
   createNew,
   getDetails,
+  dragColumn
 };

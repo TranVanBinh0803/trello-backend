@@ -23,7 +23,23 @@ const getDetails = async (req, res, next) => {
   }
 };
 
+const dragColumn = async (req, res, next) => {
+  try {
+    const boardId = req.params.id;
+    const { columnOrderIds } = req.body;
+    
+    const updatedBoard = await boardService.dragColumn(boardId, columnOrderIds);
+    res
+      .status(StatusCodes.OK)
+      .json(new ApiResponse(StatusCodes.OK, "Column order updated successfully", updatedBoard));
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 export const boardController = {
   createNew,
   getDetails,
+  dragColumn
 };

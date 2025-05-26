@@ -32,6 +32,22 @@ const createNew = async (data) => {
   }
 };
 
+const generatePlaceholderCard = async (data) => {
+  try {
+    const resCard = {
+      _id: `${data._id}-placeholder-card`,
+      boardId: new ObjectId(data.boardId),
+      columnId: new ObjectId(data._id),
+      FE_PlaceholderCard: true
+    }
+    return await GET_DB()
+      .collection(CARD_COLLECTION_NAME)
+      .insertOne(resCard);
+  } catch (error) {
+    throw new Error(error);
+  }
+};
+
 const findOneById = async (id) => {
   try {
     return await GET_DB()
@@ -42,6 +58,23 @@ const findOneById = async (id) => {
   }
 };
 
+const update = async (cardId, updateData) => {
+  try {
+    if (updateData.columnId) {
+      updateData.columnId = new ObjectId(updateData.columnId);
+    }
+
+    return await GET_DB()
+      .collection(CARD_COLLECTION_NAME)
+      .findOneAndUpdate(
+        { _id: new ObjectId(cardId) },
+        { $set: updateData },
+        { returnDocument: "after" }
+      );
+  } catch (error) {
+    throw new Error(error);
+  }
+};
 const validateBeforeCreate = async (data) => {
   return await CARD_COLLECTION_SCHEMA.validateAsync(data, {
     abortEarly: false,
@@ -52,5 +85,7 @@ export const cardModel = {
   CARD_COLLECTION_NAME,
   CARD_COLLECTION_SCHEMA,
   createNew,
-  findOneById
+  findOneById,
+  update,
+  generatePlaceholderCard
 }
