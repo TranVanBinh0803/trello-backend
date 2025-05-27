@@ -5,7 +5,8 @@ import { boardValidation } from "~/validations/boardValidation";
 const Router = express.Router();
 
 Router.route("/")
-  .post(boardValidation.createNew, boardController.createNew);
+  .post(boardValidation.createNew, boardController.createNew)
+  .delete(boardController.archiveColumn);
 
 Router.route("/:id")
   .get(boardController.getDetails)

@@ -37,9 +37,27 @@ const dragColumn = async (req, res, next) => {
   }
 };
 
+const archiveColumn = async (req, res, next) => {
+  try {
+    const updatedBoard = await boardService.archiveColumn(req.body);
+    res
+      .status(StatusCodes.OK)
+      .json(
+        new ApiResponse(
+          StatusCodes.OK,
+          "Column archive successfully",
+          updatedBoard
+        )
+      );
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 export const boardController = {
   createNew,
   getDetails,
-  dragColumn
+  dragColumn,
+  archiveColumn
 };

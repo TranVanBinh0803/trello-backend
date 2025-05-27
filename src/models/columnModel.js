@@ -28,6 +28,7 @@ const createNew = async (data) => {
       ...validData,
       boardId: new ObjectId(validData.boardId),
     };
+    console.log("resColumn:", resColumn);
     return await GET_DB()
       .collection(COLUMN_COLLECTION_NAME)
       .insertOne(resColumn);
@@ -53,6 +54,7 @@ const updateCardOrderIds = async (columnId, cardId) => {
       .findOneAndUpdate(
         { _id: new ObjectId(columnId) },
         { $push: { cardOrderIds: new ObjectId(cardId) } },
+        { $set: { updatedAt: Date.now() } },
         { returnDocument: "after" }
       );
   } catch (error) {
@@ -66,7 +68,7 @@ const dragCard = async (columnId, newCardOrderIds) => {
       .collection(COLUMN_COLLECTION_NAME)
       .findOneAndUpdate(
         { _id: new ObjectId(columnId) },
-        { $set: { cardOrderIds: newCardOrderIds } },
+        { $set: { cardOrderIds: newCardOrderIds, updatedAt: Date.now() } },
         { returnDocument: "after" }
       );
   } catch (error) {
@@ -79,33 +81,69 @@ const dragCardBetweenColumn = async (
   oldCardOrderIds,
   newColumnId,
   newCardOrderIds,
-  cardId,
+  cardId
 ) => {
   try {
     const db = GET_DB();
     const collection = db.collection(COLUMN_COLLECTION_NAME);
 
-    // Update old column
     await collection.findOneAndUpdate(
       { _id: new ObjectId(oldColumnId) },
-      { $set: { cardOrderIds: oldCardOrderIds } },
+      { $set: { cardOrderIds: oldCardOrderIds, updatedAt: Date.now() } },
       { returnDocument: "after" }
     );
 
-    // Update new column and return it
     const updatedNewColumn = await collection.findOneAndUpdate(
       { _id: new ObjectId(newColumnId) },
-      { $set: { cardOrderIds: newCardOrderIds } },
+      { $set: { cardOrderIds: newCardOrderIds, updatedAt: Date.now() } },
       { returnDocument: "after" }
     );
 
-    // Update card
     await cardModel.update(cardId, {
       columnId: newColumnId,
     });
     return updatedNewColumn;
   } catch (error) {
     throw new Error(error);
+  }
+};
+
+const archiveCard = async (data) => {
+  try {
+    const db = GET_DB();
+    const collection = db.collection(COLUMN_COLLECTION_NAME);
+
+    const columnObjectId = new ObjectId(data.columnId);
+    const cardObjectId = new ObjectId(data.cardId);
+
+    const updatedColumn = await collection.findOneAndUpdate(
+      { _id: columnObjectId },
+      {
+        $pull: { cardOrderIds: cardObjectId },
+        $set: { updatedAt: Date.now() },
+      },
+      { returnDocument: "after" }
+    );
+    await cardModel.deleteOneById(data.cardId);
+
+    return updatedColumn;
+  } catch (error) {
+    throw new Error(`Archive card failed: ${error.message}`);
+  }
+};
+
+const deleteOneById = async (columnId) => {
+  try {
+    const result = await GET_DB()
+      .collection(COLUMN_COLLECTION_NAME)
+      .deleteOne({ _id: new ObjectId(columnId) });
+
+    if (result.deletedCount === 0) {
+      throw new Error(`Column with id ${columnId} not found or already deleted`);
+    }
+    return result;
+  } catch (error) {
+    throw new Error(error.message);
   }
 };
 
@@ -123,4 +161,6 @@ export const columnModel = {
   updateCardOrderIds,
   dragCard,
   dragCardBetweenColumn,
+  archiveCard,
+  deleteOneById
 };

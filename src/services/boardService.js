@@ -44,18 +44,14 @@ const getDetails = async (boardId) => {
 
 const dragColumn = async (boardId, columnOrderIds) => {
   try {
-
     if (!ObjectId.isValid(boardId)) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid boardId!');
     }
-    
     const board = await boardModel.findOneById(new ObjectId(boardId));
     if (!board) {
       throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
     }
-
     const objectIdArray = columnOrderIds.map(id => new ObjectId(id));
-
     const updatedBoard = await boardModel.dragColumn(boardId, objectIdArray);
     
     if (!updatedBoard) {
@@ -68,8 +64,44 @@ const dragColumn = async (boardId, columnOrderIds) => {
   }
 };
 
+const archiveColumn = async (data) => {
+  try {
+    if (!ObjectId.isValid(data.boardId)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid boardId!");
+    }
+    if (!ObjectId.isValid(data.columnId)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid columnId!");
+    }
+    const board = await boardModel.findOneById(new ObjectId(data.boardId));
+    if (!board) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
+    }
+    const columnExists = board.columnOrderIds.some(
+      (id) => id.toString() === data.columnId
+    );
+    if (!columnExists) {
+      throw new ApiError(
+        StatusCodes.NOT_FOUND,
+        "Column not found in this board!"
+      );
+    }
+    const result = await boardModel.archiveColumn(data);
+
+    if (!result) {
+      throw new ApiError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        "Column archive failed!"
+      );
+    }
+    return result;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const boardService = {
   createNew,
   getDetails,
-  dragColumn
+  dragColumn,
+  archiveColumn
 };

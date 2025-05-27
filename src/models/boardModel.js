@@ -78,6 +78,7 @@ const updateColumnOrderIds = async (boardId, columnId) => {
       .findOneAndUpdate(
         { _id: new ObjectId(boardId) },
         { $push: { columnOrderIds: new ObjectId(columnId) } },
+        { $set: { updatedAt: Date.now() } },
         { returnDocument: "after" }
       );
   } catch (error) {
@@ -91,9 +92,33 @@ const dragColumn = async (boardId, newColumnOrderIds) => {
       .collection(BOARD_COLLECTION_NAME)
       .findOneAndUpdate(
         { _id: new ObjectId(boardId) },
-        { $set: { columnOrderIds: newColumnOrderIds } },
+        { $set: { columnOrderIds: newColumnOrderIds, updatedAt: Date.now() } },
         { returnDocument: "after" }
       );
+  } catch (error) {
+    throw new Error(error);
+  }
+};
+
+const archiveColumn = async (data) => {
+  try {
+    const db = GET_DB();
+    const collection = db.collection(BOARD_COLLECTION_NAME);
+
+    const boardObjectId = new ObjectId(data.boardId);
+    const columnObjectId = new ObjectId(data.columnId);
+
+    const updatedBoard = await collection.findOneAndUpdate(
+      { _id: boardObjectId },
+      {
+        $pull: { columnOrderIds: columnObjectId },
+        $set: { updatedAt: Date.now() },
+      },
+      { returnDocument: "after" }
+    );
+    await columnModel.deleteOneById(data.columnId);
+
+    return updatedBoard;
   } catch (error) {
     throw new Error(error);
   }
@@ -112,5 +137,6 @@ export const boardModel = {
   findOneById,
   getDetails,
   updateColumnOrderIds,
-  dragColumn
+  dragColumn,
+  archiveColumn
 };

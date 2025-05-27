@@ -68,7 +68,7 @@ const update = async (cardId, updateData) => {
       .collection(CARD_COLLECTION_NAME)
       .findOneAndUpdate(
         { _id: new ObjectId(cardId) },
-        { $set: updateData },
+        { $set: {...updateData, updatedAt: Date.now()} },
         { returnDocument: "after" }
       );
   } catch (error) {
@@ -81,11 +81,27 @@ const validateBeforeCreate = async (data) => {
   });
 };
 
+const deleteOneById = async (cardId) => {
+  try {
+    const result = await GET_DB()
+      .collection(CARD_COLLECTION_NAME)
+      .deleteOne({ _id: new ObjectId(cardId) });
+
+    if (result.deletedCount === 0) {
+      throw new Error(`Card with id ${cardId} not found or already deleted`);
+    }
+    return result;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
 export const cardModel = {
   CARD_COLLECTION_NAME,
   CARD_COLLECTION_SCHEMA,
   createNew,
   findOneById,
   update,
-  generatePlaceholderCard
+  generatePlaceholderCard,
+  deleteOneById
 }
