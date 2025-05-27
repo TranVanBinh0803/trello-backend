@@ -14,9 +14,7 @@ const createNew = async (reqBody) => {
     };
 
     const createdBoard = await boardModel.createNew(newBoard);
-    const getNewBoard = await boardModel.findOneById(
-      new ObjectId(createdBoard.insertedId)
-    );
+    const getNewBoard = await boardModel.findOneById(createdBoard.insertedId);
     return getNewBoard;
   } catch (error) {
     throw error;
@@ -25,7 +23,7 @@ const createNew = async (reqBody) => {
 
 const getDetails = async (boardId) => {
   try {
-    const board = await boardModel.getDetails(new ObjectId(boardId));
+    const board = await boardModel.getDetails(boardId);
     if (!board) {
       throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
     }
@@ -45,15 +43,15 @@ const getDetails = async (boardId) => {
 const dragColumn = async (boardId, columnOrderIds) => {
   try {
     if (!ObjectId.isValid(boardId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid boardId!');
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid boardId!");
     }
-    const board = await boardModel.findOneById(new ObjectId(boardId));
+    const board = await boardModel.findOneById(boardId);
     if (!board) {
       throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
     }
-    const objectIdArray = columnOrderIds.map(id => new ObjectId(id));
+    const objectIdArray = columnOrderIds.map((id) => new ObjectId(id));
     const updatedBoard = await boardModel.dragColumn(boardId, objectIdArray);
-    
+
     if (!updatedBoard) {
       throw new ApiError(StatusCodes.NOT_FOUND, "Board update failed!");
     }
@@ -103,5 +101,5 @@ export const boardService = {
   createNew,
   getDetails,
   dragColumn,
-  archiveColumn
+  archiveColumn,
 };

@@ -23,10 +23,6 @@ const createNew = async (req, res, next) => {
 
 const dragCard = async (req, res, next) => {
   const correctCondition = Joi.object({
-    columnId: Joi.string()
-      .required()
-      .pattern(OBJECT_ID_RULE)
-      .message(OBJECT_ID_RULE_MESSAGE),
     cardOrderIds: Joi.array().items(Joi.string()).required().min(1).messages({
       "array.min": "cardOrderIds must contain at least one column ID",
       "any.required": "cardOrderIds is required",

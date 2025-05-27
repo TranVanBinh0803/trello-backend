@@ -10,6 +10,6 @@ Router.route("/")
 
 Router.route("/:id")
   .get(boardController.getDetails)
-  .put(boardValidation.dragColumn, boardController.dragColumn);
+  .patch(boardValidation.dragColumn, boardController.dragColumn);
 
 export const boardRoute = Router;

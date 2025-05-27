@@ -21,7 +21,8 @@ const createNew = async (req, res, next) => {
 
 const dragCard = async (req, res, next) => {
   try {
-    const { columnId, cardOrderIds } = req.body;
+    const columnId = req.params.id;
+    const { cardOrderIds } = req.body;
 
     const updatedColumn = await columnService.dragCard(columnId, cardOrderIds);
     res

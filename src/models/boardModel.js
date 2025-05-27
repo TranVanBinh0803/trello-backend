@@ -20,114 +20,78 @@ const BOARD_COLLECTION_SCHEMA = Joi.object({
   _destroy: Joi.boolean().default(false),
 });
 
-const createNew = async (data) => {
-  try {
-    const validData = await validateBeforeCreate(data);
-    return await GET_DB()
-      .collection(BOARD_COLLECTION_NAME)
-      .insertOne(validData);
-  } catch (error) {
-    throw new Error(error);
-  }
-};
-
-const findOneById = async (id) => {
-  try {
-    return await GET_DB()
-      .collection(BOARD_COLLECTION_NAME)
-      .findOne({ _id: id });
-  } catch (error) {
-    throw new Error(error);
-  }
-};
-
-const getDetails = async (id) => {
-  try {
-    const result = await GET_DB()
-      .collection(BOARD_COLLECTION_NAME)
-      .aggregate([
-        { $match: { _id: new ObjectId(id), _destroy: false } },
-        {
-          $lookup: {
-            from: columnModel.COLUMN_COLLECTION_NAME,
-            localField: "_id",
-            foreignField: "boardId",
-            as: "columns",
-          },
-        },
-        {
-          $lookup: {
-            from: cardModel.CARD_COLLECTION_NAME,
-            localField: "_id",
-            foreignField: "boardId",
-            as: "cards",
-          },
-        },
-      ])
-      .toArray();
-    return result[0] || null;
-  } catch (error) {
-    throw new Error(error);
-  }
-};
-
-const updateColumnOrderIds = async (boardId, columnId) => {
-  try {
-    return await GET_DB()
-      .collection(BOARD_COLLECTION_NAME)
-      .findOneAndUpdate(
-        { _id: new ObjectId(boardId) },
-        { $push: { columnOrderIds: new ObjectId(columnId) } },
-        { $set: { updatedAt: Date.now() } },
-        { returnDocument: "after" }
-      );
-  } catch (error) {
-    throw new Error(error);
-  }
-};
-
-const dragColumn = async (boardId, newColumnOrderIds) => {
-  try {
-    return await GET_DB()
-      .collection(BOARD_COLLECTION_NAME)
-      .findOneAndUpdate(
-        { _id: new ObjectId(boardId) },
-        { $set: { columnOrderIds: newColumnOrderIds, updatedAt: Date.now() } },
-        { returnDocument: "after" }
-      );
-  } catch (error) {
-    throw new Error(error);
-  }
-};
-
-const archiveColumn = async (data) => {
-  try {
-    const db = GET_DB();
-    const collection = db.collection(BOARD_COLLECTION_NAME);
-
-    const boardObjectId = new ObjectId(data.boardId);
-    const columnObjectId = new ObjectId(data.columnId);
-
-    const updatedBoard = await collection.findOneAndUpdate(
-      { _id: boardObjectId },
-      {
-        $pull: { columnOrderIds: columnObjectId },
-        $set: { updatedAt: Date.now() },
-      },
-      { returnDocument: "after" }
-    );
-    await columnModel.deleteOneById(data.columnId);
-
-    return updatedBoard;
-  } catch (error) {
-    throw new Error(error);
-  }
-};
+const getCollection = () => GET_DB().collection(BOARD_COLLECTION_NAME);
 
 const validateBeforeCreate = async (data) => {
   return await BOARD_COLLECTION_SCHEMA.validateAsync(data, {
     abortEarly: false,
   });
+};
+
+const createNew = async (data) => {
+  const validData = await validateBeforeCreate(data);
+  return getCollection().insertOne(validData);
+};
+
+const findOneById = async (id) => {
+  return await getCollection().findOne({ _id: new ObjectId(id) });
+};
+
+const getDetails = async (id) => {
+  const result = await getCollection()
+    .aggregate([
+      { $match: { _id: new ObjectId(id), _destroy: false } },
+      {
+        $lookup: {
+          from: columnModel.COLUMN_COLLECTION_NAME,
+          localField: "_id",
+          foreignField: "boardId",
+          as: "columns",
+        },
+      },
+      {
+        $lookup: {
+          from: cardModel.CARD_COLLECTION_NAME,
+          localField: "_id",
+          foreignField: "boardId",
+          as: "cards",
+        },
+      },
+    ])
+    .toArray();
+  return result[0] || null;
+};
+
+const updateColumnOrderIds = async (boardId, columnId) => {
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(boardId) },
+    {
+      $push: { columnOrderIds: new ObjectId(columnId) },
+      $set: { updatedAt: Date.now() },
+    },
+    { returnDocument: "after" }
+  );
+};
+
+const dragColumn = async (boardId, newColumnOrderIds) => {
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(boardId) },
+    { $set: { columnOrderIds: newColumnOrderIds, updatedAt: Date.now() } },
+    { returnDocument: "after" }
+  );
+};
+
+const archiveColumn = async ({ boardId, columnId }) => {
+  const updatedBoard = await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(boardId) },
+    {
+      $pull: { columnOrderIds: new ObjectId(columnId) },
+      $set: { updatedAt: Date.now() },
+    },
+    { returnDocument: "after" }
+  );
+  await columnModel.deleteOneById(columnId);
+  return updatedBoard;
 };
 
 export const boardModel = {
@@ -138,5 +102,5 @@ export const boardModel = {
   getDetails,
   updateColumnOrderIds,
   dragColumn,
-  archiveColumn
+  archiveColumn,
 };

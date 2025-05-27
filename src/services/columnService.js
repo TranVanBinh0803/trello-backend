@@ -33,14 +33,14 @@ const dragCard = async (columnId, cardOrderIds) => {
       throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid columnId!");
     }
 
-    const column = await columnModel.findOneById(new ObjectId(columnId));
+    const column = await columnModel.findOneById(columnId);
     if (!column) {
       throw new ApiError(StatusCodes.NOT_FOUND, "Column not found!");
     }
      const filteredCardIds = cardOrderIds.filter(id => !id.endsWith("-placeholder-card"));
     const objectIdArray = filteredCardIds.map((id) => new ObjectId(id));
 
-    const updatedColumn = await columnModel.dragCard(columnId, objectIdArray);
+    const updatedColumn = await columnModel.updateCardOrderIds(columnId, objectIdArray);
 
     if (!updatedColumn) {
       throw new ApiError(StatusCodes.NOT_FOUND, "Column update failed!");
