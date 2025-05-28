@@ -6,10 +6,9 @@ const Router = express.Router();
 
 Router.route("/")
   .post(columnValidation.createNew, columnController.createNew)
-  .delete(columnController.archiveCard);
 
 Router.route("/:id")
-  // .delete(columnController.archiveCard);
+  .delete(columnController.archiveCard)
   .patch(columnValidation.dragCard, columnController.dragCard)
 
 Router.route("/between-column")

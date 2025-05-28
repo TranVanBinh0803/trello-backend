@@ -37,10 +37,15 @@ const dragCard = async (columnId, cardOrderIds) => {
     if (!column) {
       throw new ApiError(StatusCodes.NOT_FOUND, "Column not found!");
     }
-     const filteredCardIds = cardOrderIds.filter(id => !id.endsWith("-placeholder-card"));
+    const filteredCardIds = cardOrderIds.filter(
+      (id) => !id.endsWith("-placeholder-card")
+    );
     const objectIdArray = filteredCardIds.map((id) => new ObjectId(id));
 
-    const updatedColumn = await columnModel.updateCardOrderIds(columnId, objectIdArray);
+    const updatedColumn = await columnModel.updateCardOrderIds(
+      columnId,
+      objectIdArray
+    );
 
     if (!updatedColumn) {
       throw new ApiError(StatusCodes.NOT_FOUND, "Column update failed!");
@@ -64,11 +69,15 @@ const dragCardBetweenColumn = async (
       throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid columnId!");
     }
 
-    const filteredOldCardIds = oldCardOrderIds.filter(id => !id.endsWith("-placeholder-card"));
-    const oldObjectIdArray = filteredOldCardIds.map(id => new ObjectId(id));
+    const filteredOldCardIds = oldCardOrderIds.filter(
+      (id) => !id.endsWith("-placeholder-card")
+    );
+    const oldObjectIdArray = filteredOldCardIds.map((id) => new ObjectId(id));
 
-    const filteredNewCardIds = newCardOrderIds.filter(id => !id.endsWith("-placeholder-card"));
-    const newObjectIdArray = filteredNewCardIds.map(id => new ObjectId(id));
+    const filteredNewCardIds = newCardOrderIds.filter(
+      (id) => !id.endsWith("-placeholder-card")
+    );
+    const newObjectIdArray = filteredNewCardIds.map((id) => new ObjectId(id));
 
     const updatedColumn = await columnModel.dragCardBetweenColumn(
       oldColumnId,
@@ -79,7 +88,10 @@ const dragCardBetweenColumn = async (
     );
 
     if (!updatedColumn) {
-      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Column update failed!");
+      throw new ApiError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        "Column update failed!"
+      );
     }
 
     return updatedColumn;
@@ -88,15 +100,15 @@ const dragCardBetweenColumn = async (
   }
 };
 
-const archiveCard = async (data) => {
+const archiveCard = async (columnId, data) => {
   try {
-    if (!ObjectId.isValid(data.columnId)) {
+    if (!ObjectId.isValid(columnId)) {
       throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid columnId!");
     }
     if (!ObjectId.isValid(data.cardId)) {
       throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
     }
-    const column = await columnModel.findOneById(new ObjectId(data.columnId));
+    const column = await columnModel.findOneById(new ObjectId(columnId));
     if (!column) {
       throw new ApiError(StatusCodes.NOT_FOUND, "Column not found!");
     }
@@ -109,7 +121,7 @@ const archiveCard = async (data) => {
         "Card not found in this column!"
       );
     }
-    const result = await columnModel.archiveCard(data);
+    const result = await columnModel.archiveCard(columnId, data);
 
     if (!result) {
       throw new ApiError(

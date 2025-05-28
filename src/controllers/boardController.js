@@ -39,7 +39,9 @@ const dragColumn = async (req, res, next) => {
 
 const archiveColumn = async (req, res, next) => {
   try {
-    const updatedBoard = await boardService.archiveColumn(req.body);
+    const boardId = req.params.id;
+    const columnId = req.body;
+    const updatedBoard = await boardService.archiveColumn(boardId, columnId);
     res
       .status(StatusCodes.OK)
       .json(

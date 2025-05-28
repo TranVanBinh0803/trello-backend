@@ -62,15 +62,15 @@ const dragColumn = async (boardId, columnOrderIds) => {
   }
 };
 
-const archiveColumn = async (data) => {
+const archiveColumn = async (boardId, data) => {
   try {
-    if (!ObjectId.isValid(data.boardId)) {
+    if (!ObjectId.isValid(boardId)) {
       throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid boardId!");
     }
     if (!ObjectId.isValid(data.columnId)) {
       throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid columnId!");
     }
-    const board = await boardModel.findOneById(new ObjectId(data.boardId));
+    const board = await boardModel.findOneById(new ObjectId(boardId));
     if (!board) {
       throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
     }
@@ -83,7 +83,7 @@ const archiveColumn = async (data) => {
         "Column not found in this board!"
       );
     }
-    const result = await boardModel.archiveColumn(data);
+    const result = await boardModel.archiveColumn(boardId, data);
 
     if (!result) {
       throw new ApiError(

@@ -79,12 +79,9 @@ const dragCardBetweenColumn = async (
   return updatedNewColumn;
 };
 
-const archiveCard = async ({ columnId, cardId }) => {
-  const updatedColumn = await getCollection().pullCardOrderIds(
-    columnId,
-    cardId
-  );
-  await cardModel.deleteOneById(cardId);
+const archiveCard = async (columnId, data) => {
+  const updatedColumn = await pullCardOrderIds(columnId, data.cardId);
+  await cardModel.deleteOneById(data.cardId);
   return updatedColumn;
 };
 

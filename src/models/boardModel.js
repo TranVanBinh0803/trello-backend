@@ -81,16 +81,17 @@ const dragColumn = async (boardId, newColumnOrderIds) => {
   );
 };
 
-const archiveColumn = async ({ boardId, columnId }) => {
+const archiveColumn = async (boardId, data) => {
   const updatedBoard = await getCollection().findOneAndUpdate(
     { _id: new ObjectId(boardId) },
     {
-      $pull: { columnOrderIds: new ObjectId(columnId) },
+      $pull: { columnOrderIds: new ObjectId(data.columnId) },
       $set: { updatedAt: Date.now() },
     },
     { returnDocument: "after" }
   );
-  await columnModel.deleteOneById(columnId);
+  await columnModel.deleteOneById(data.columnId);
+  await cardModel.removeCardsByColumnId(data.columnId);
   return updatedBoard;
 };
 

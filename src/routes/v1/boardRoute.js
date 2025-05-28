@@ -6,10 +6,10 @@ const Router = express.Router();
 
 Router.route("/")
   .post(boardValidation.createNew, boardController.createNew)
-  .delete(boardController.archiveColumn);
 
 Router.route("/:id")
   .get(boardController.getDetails)
-  .patch(boardValidation.dragColumn, boardController.dragColumn);
+  .patch(boardValidation.dragColumn, boardController.dragColumn)
+  .delete(boardController.archiveColumn);
 
 export const boardRoute = Router;

@@ -72,8 +72,9 @@ const dragCardBetweenColumn = async (req, res, next) => {
 
 const archiveCard = async (req, res, next) => {
   try {
-    const updatedColumn = await columnService.archiveCard(req.body);
-    console.log("Req.body: ", req.body);
+    const columnId = req.params.id;
+    const cardId = req.body;
+    const updatedColumn = await columnService.archiveCard(columnId, cardId);
     res
       .status(StatusCodes.OK)
       .json(
