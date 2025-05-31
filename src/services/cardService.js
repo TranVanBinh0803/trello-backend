@@ -12,7 +12,7 @@ const createNew = async (reqBody) => {
       new ObjectId(newCardId)
     );
 
-    await columnModel.updateCardOrderIds(getNewCard.columnId.toString(), newCardId);
+    await columnModel.pushCardOrderIds(getNewCard.columnId.toString(), newCardId);
     return getNewCard;
   } catch (error) {
     throw error;

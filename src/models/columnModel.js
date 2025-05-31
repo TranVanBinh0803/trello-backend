@@ -61,6 +61,17 @@ const updateCardOrderIds = async (columnId, cardOrderIds) => {
   );
 };
 
+const pushCardOrderIds = async (columnId, cardId) => {
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(columnId) },
+    {
+      $push: { cardOrderIds: new ObjectId(cardId) },
+      $set: { updatedAt: Date.now() },
+    },
+    { returnDocument: "after" }
+  );
+};
+
 const dragCardBetweenColumn = async (
   oldColumnId,
   oldCardOrderIds,
@@ -102,6 +113,7 @@ export const columnModel = {
   findOneById,
   updateCardOrderIds,
   pullCardOrderIds,
+  pushCardOrderIds,
   dragCardBetweenColumn,
   archiveCard,
   deleteOneById,
