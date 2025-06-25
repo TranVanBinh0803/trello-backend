@@ -11,6 +11,21 @@ const createNew = async (req, res, next) => {
   }
 };
 
+const updateTitle = async (req, res, next) => {
+  try {
+    const cardId = req.params.id;
+    const reqBody = req.body;
+    
+    const updatedCard = await cardService.updateTitle(cardId, reqBody);
+    res
+      .status(StatusCodes.OK)
+      .json(new ApiResponse(StatusCodes.OK, "Card title updated successfully", updatedCard));
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const cardController = {
-  createNew
+  createNew,
+  updateTitle
 };
