@@ -1,12 +1,21 @@
+import { StatusCodes } from "http-status-codes";
 import jwt from "jsonwebtoken";
 import { userModel } from "~/models/userModel";
+import { ApiResponse } from "~/utils/types";
 
 export const verifyToken = async (req, res, next) => {
   try {
     let token = req.headers.authorization;
 
     if (!token) {
-      return res.status(403).json("Access denied");
+      return res
+      .status(StatusCodes.FORBIDDEN)
+      .json(
+        new ApiResponse(
+          StatusCodes.FORBIDDEN,
+          "You don't have permission to continue"
+        )
+      );
     }
 
     if (token.startsWith("Bearer ")) {
@@ -20,7 +29,12 @@ export const verifyToken = async (req, res, next) => {
     next();
   } catch (error) {
     res
-      .status(500)
-      .json({ Error: "Error verifying token", msg: error.message });
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json(
+        new ApiResponse(
+          StatusCodes.INTERNAL_SERVER_ERROR,
+          "Error verifying token"
+        )
+      );
   }
 };

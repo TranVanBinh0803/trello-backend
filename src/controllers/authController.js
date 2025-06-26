@@ -5,8 +5,12 @@ import { ApiResponse } from "~/utils/types";
 
 const login = async (req, res, next) => {
   try {
-    const token = await authService.login(req.body)
-    res.status(StatusCodes.CREATED).json(new ApiResponse(StatusCodes.OK, "Create new card successfully", token));
+    const loginResponse = await authService.login(req.body);
+    res
+      .status(StatusCodes.OK)
+      .json(
+        new ApiResponse(StatusCodes.OK, "Login successfully", loginResponse)
+      );
   } catch (error) {
     next(error);
   }
@@ -14,8 +18,28 @@ const login = async (req, res, next) => {
 
 const register = async (req, res, next) => {
   try {
-    const createUser = await userService.createNew(req.body)
-    res.status(StatusCodes.CREATED).json(new ApiResponse(StatusCodes.OK, "Create new user successfully", createUser));
+    const createdUser = await userService.createNew(req.body);
+    res
+      .status(StatusCodes.CREATED)
+      .json(
+        new ApiResponse(
+          StatusCodes.CREATED,
+          "Create new user successfully",
+          createdUser
+        )
+      );
+  } catch (error) {
+    next(error);
+  }
+};
+
+const logout = async (req, res, next) => {
+  try {
+    // const userId = req.params.id;
+    // const logoutResponse = await authService.logout(userId);
+    res
+      .status(StatusCodes.OK)
+      .json(new ApiResponse(StatusCodes.OK, "Logout successfully"));
   } catch (error) {
     next(error);
   }
@@ -23,5 +47,6 @@ const register = async (req, res, next) => {
 
 export const authController = {
   login,
-  register
+  register,
+  logout,
 };

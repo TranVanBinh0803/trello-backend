@@ -16,8 +16,15 @@ const login = async (reqBody) => {
     if (!isPasswordValid) {
       throw new ApiError(StatusCodes.FORBIDDEN, "Invalid credentials");
     }
-    const token = generateToken(user._id);
-    return token;
+     const { token: accessToken, expiresInSecs } = generateToken(user._id);
+    // eslint-disable-next-line no-unused-vars
+    const { password: _, ...userWithoutPassword } = user;
+
+     return {
+      accessToken,
+      expiresInSecs,
+      user: userWithoutPassword,
+    };
   } catch (error) {
     throw error;
   }

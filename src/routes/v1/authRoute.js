@@ -9,5 +9,6 @@ Router.route("/register").post(
   authValidation.register,
   authController.register
 );
+Router.route("/logout").get(authController.logout);
 
 export const authRoute = Router;
