@@ -34,6 +34,33 @@ const createNew = async (reqBody) => {
   }
 };
 
+const getUser = async (userId) => {
+  try {
+    const user = await userModel.findOneById(userId);
+    return user;
+  } catch (error) {
+    throw error;
+  }
+};
+
+const updateProfile = async (userId, data) => {
+  try {
+    if (!ObjectId.isValid(userId)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid userId!");
+    }
+    const user = await userModel.findOneById(new ObjectId(userId));
+    if (!user) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "user not found!");
+    }
+    const updatedUser = await userModel.updateProfile(userId, data);
+    return updatedUser;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const userService = {
   createNew,
+  getUser,
+  updateProfile,
 };

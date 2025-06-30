@@ -36,10 +36,21 @@ const findOneByEmail = async (email) => {
   return await getCollection().findOne({ email });
 };
 
+const updateProfile = async (userId, updateData) => {
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(userId) },
+    {
+      $set:{ ...updateData, updatedAt: Date.now() },
+    },
+    { returnDocument: "after" }
+  );
+};
+
 export const userModel = {
   USER_COLLECTION_NAME,
   USER_COLLECTION_SCHEMA,
   createNew,
   findOneById,
   findOneByEmail,
+  updateProfile,
 };

@@ -4,6 +4,16 @@ import { GET_DB } from "~/config/mongodb";
 import { OBJECT_ID_RULE, OBJECT_ID_RULE_MESSAGE } from "~/utils/validators";
 
 const CARD_COLLECTION_NAME = "cards";
+
+const COMMENT_SCHEMA = Joi.object({
+  _id: Joi.string().optional(), 
+  authorName: Joi.string().required().min(1).max(100).trim(),
+  avatar: Joi.string().uri().allow(null, "").optional(),
+  content: Joi.string().required().min(1).max(1000).trim(),
+  createdAt: Joi.date().timestamp("javascript").optional(),
+  updatedAt: Joi.date().timestamp("javascript").optional(),
+});
+
 const CARD_COLLECTION_SCHEMA = Joi.object({
   boardId: Joi.string()
     .required()
@@ -16,7 +26,8 @@ const CARD_COLLECTION_SCHEMA = Joi.object({
 
   title: Joi.string().required().min(3).max(50).trim().strict(),
   description: Joi.string().optional(),
-
+  comments: Joi.array().items(COMMENT_SCHEMA).optional(),
+  attachments: Joi.array().optional(),
   createdAt: Joi.date().timestamp("javascript").default(Date.now),
   updatedAt: Joi.date().timestamp("javascript").default(null),
   _destroy: Joi.boolean().default(false),
@@ -26,6 +37,12 @@ const getCollection = () => GET_DB().collection(CARD_COLLECTION_NAME);
 
 const validateBeforeCreate = async (data) => {
   return await CARD_COLLECTION_SCHEMA.validateAsync(data, {
+    abortEarly: false,
+  });
+};
+
+const validateComment = async (data) => {
+  return await COMMENT_SCHEMA.validateAsync(data, {
     abortEarly: false,
   });
 };
@@ -66,11 +83,76 @@ const update = async (cardId, updateData) => {
   );
 };
 
+const addComment = async (cardId, commentData) => {
+  const validCommentData = await validateComment(commentData);
+  
+  const newComment = {
+    ...validCommentData,
+    _id: new ObjectId(),
+    createdAt: Date.now(),
+    updatedAt: null,
+  };
+
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(cardId) },
+    {
+      $push: { comments: newComment },
+      $set: { updatedAt: Date.now() },
+    },
+    { returnDocument: "after" }
+  );
+};
+
+const deleteComment = async (cardId, commentId) => {
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(cardId) },
+    {
+      $pull: { comments: { _id: new ObjectId(commentId) } },
+      $set: { updatedAt: Date.now() },
+    },
+    { returnDocument: "after" }
+  );
+};
+
+const updateComment = async (cardId, commentId, updateData) => {
+  // Chỉ cho phép update content
+  const filteredData = {
+    'comments.$.content': updateData.content,
+    'comments.$.updatedAt': Date.now(),
+    'updatedAt': Date.now()
+  };
+
+  return await getCollection().findOneAndUpdate(
+    { 
+      _id: new ObjectId(cardId),
+      'comments._id': new ObjectId(commentId)
+    },
+    { $set: filteredData },
+    { returnDocument: "after" }
+  );
+};
+
+const getCommentById = async (cardId, commentId) => {
+  const card = await getCollection().findOne(
+    { 
+      _id: new ObjectId(cardId),
+      'comments._id': new ObjectId(commentId)
+    },
+    { projection: { 'comments.$': 1 } }
+  );
+  return card && card.comments ? card.comments[0] : null;
+};
+
+const getComments = async (cardId) => {
+  const card = await getCollection().findOne(
+    { _id: new ObjectId(cardId) },
+    { projection: { comments: 1 } }
+  );
+  return card ? card.comments || [] : [];
+};
+
 const deleteOneById = async (cardId) => {
   const result = await getCollection().deleteOne({ _id: new ObjectId(cardId) });
-  // if (result.deletedCount === 0) {
-  //   throw new Error(`Card with id ${cardId} not found or already deleted`);
-  // }
   return result;
 };
 
@@ -84,6 +166,11 @@ export const cardModel = {
   createNew,
   findOneById,
   update,
+  addComment,
+  deleteComment,
+  updateComment,
+  getCommentById,
+  getComments,
   generatePlaceholderCard,
   deleteOneById,
   removeCardsByColumnId,
