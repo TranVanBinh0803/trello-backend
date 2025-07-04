@@ -19,3 +19,12 @@ export const generatePlaceholderCard = (column) => {
       FE_PlaceholderCard: true
     }
 }
+
+export const sanitizeFilename = (filename) => {
+    const sanitized = filename
+      .replace(/[()]/g, "")
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9._-]/g, "");
+
+    return sanitized;
+  };

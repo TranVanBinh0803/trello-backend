@@ -3,7 +3,7 @@ import { StatusCodes } from "http-status-codes";
 import { cloneDeep } from "lodash";
 import { ObjectId } from "mongodb";
 import { boardModel } from "~/models/boardModel";
-import { slugify } from "~/utils/formatters";
+import { slugify } from "~/utils/helpers";
 import { ApiError } from "~/utils/types";
 
 const createNew = async (reqBody) => {

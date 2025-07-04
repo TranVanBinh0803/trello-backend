@@ -15,6 +15,7 @@
     "dev": " cross-env BUILD_MODE=dev nodemon --exec babel-node ./src/server.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.840.0",
     "@babel/runtime": "^7.22.10",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
@@ -25,7 +26,8 @@
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
-    "mongodb": "^6.16.0"
+    "mongodb": "^6.16.0",
+    "multer": "^2.0.1"
   },
   "devDependencies": {
     "@babel/cli": "^7.22.10",

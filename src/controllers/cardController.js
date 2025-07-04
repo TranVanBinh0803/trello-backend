@@ -62,9 +62,15 @@ const addComment = async (req, res, next) => {
 const updateComment = async (req, res, next) => {
   try {
     const cardId = req.params.cardId;
+    const commentId = req.params.commentId;
+
     const reqBody = req.body;
 
-    const updatedCard = await cardService.updateComment(cardId, reqBody);
+    const updatedCard = await cardService.updateComment(
+      cardId,
+      commentId,
+      reqBody
+    );
     res
       .status(StatusCodes.OK)
       .json(
@@ -82,9 +88,9 @@ const updateComment = async (req, res, next) => {
 const deleteComment = async (req, res, next) => {
   try {
     const cardId = req.params.cardId;
-    const reqBody = req.body;
+    const commentId = req.params.commentId;
 
-    const updatedCard = await cardService.deleteComment(cardId, reqBody);
+    const updatedCard = await cardService.deleteComment(cardId, commentId);
     res
       .status(StatusCodes.OK)
       .json(
@@ -117,13 +123,28 @@ const getComments = async (req, res, next) => {
 const getCommentById = async (req, res, next) => {
   try {
     const cardId = req.params.cardId;
-    const reqBody = req.body;
+    const commentId = req.params.commentId;
 
-    const comment = await cardService.getCommentById(cardId, reqBody);
+    const comment = await cardService.getCommentById(cardId, commentId);
     res
       .status(StatusCodes.OK)
       .json(
         new ApiResponse(StatusCodes.OK, "Get comment successfully", comment)
+      );
+  } catch (error) {
+    next(error);
+  }
+};
+
+const uploadFile = async (req, res, next) => {
+  try {
+    const cardId = req.params.cardId;
+    const file = req.file;
+    const result = await cardService.uploadFile(cardId, file);
+    res
+      .status(StatusCodes.OK)
+      .json(
+        new ApiResponse(StatusCodes.OK, "Upload file successfully", result)
       );
   } catch (error) {
     next(error);
@@ -138,4 +159,5 @@ export const cardController = {
   deleteComment,
   getComments,
   getCommentById,
+  uploadFile,
 };

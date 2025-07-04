@@ -14,6 +14,14 @@ const COMMENT_SCHEMA = Joi.object({
   updatedAt: Joi.date().timestamp("javascript").optional(),
 });
 
+const ATTACHMENT_SCHEMA = Joi.object({
+  _id: Joi.string().optional(), 
+  fileUrl: Joi.string().required().min(1).max(100).trim(),
+  fileName: Joi.string().required().min(1).max(1000).trim(),
+  createdAt: Joi.date().timestamp("javascript").optional(),
+  updatedAt: Joi.date().timestamp("javascript").optional(),
+});
+
 const CARD_COLLECTION_SCHEMA = Joi.object({
   boardId: Joi.string()
     .required()
@@ -27,7 +35,7 @@ const CARD_COLLECTION_SCHEMA = Joi.object({
   title: Joi.string().required().min(3).max(50).trim().strict(),
   description: Joi.string().optional(),
   comments: Joi.array().items(COMMENT_SCHEMA).optional(),
-  attachments: Joi.array().optional(),
+  attachments: Joi.array().items(ATTACHMENT_SCHEMA).optional(),
   createdAt: Joi.date().timestamp("javascript").default(Date.now),
   updatedAt: Joi.date().timestamp("javascript").default(null),
   _destroy: Joi.boolean().default(false),
@@ -115,7 +123,6 @@ const deleteComment = async (cardId, commentId) => {
 };
 
 const updateComment = async (cardId, commentId, updateData) => {
-  // Chỉ cho phép update content
   const filteredData = {
     'comments.$.content': updateData.content,
     'comments.$.updatedAt': Date.now(),
@@ -151,6 +158,25 @@ const getComments = async (cardId) => {
   return card ? card.comments || [] : [];
 };
 
+const addAttachment = async (cardId, attachmentData) => {
+  
+  const newAttachment = {
+    ...attachmentData,
+    _id: new ObjectId(),
+    createdAt: Date.now(),
+    updatedAt: null,
+  };
+
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(cardId) },
+    {
+      $push: { attachments: newAttachment },
+      $set: { updatedAt: Date.now() },
+    },
+    { returnDocument: "after" }
+  );
+};
+
 const deleteOneById = async (cardId) => {
   const result = await getCollection().deleteOne({ _id: new ObjectId(cardId) });
   return result;
@@ -174,4 +200,5 @@ export const cardModel = {
   generatePlaceholderCard,
   deleteOneById,
   removeCardsByColumnId,
+  addAttachment
 };
