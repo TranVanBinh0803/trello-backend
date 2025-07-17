@@ -25,6 +25,18 @@ const createNew = async (reqBody) => {
   }
 };
 
+const getDetails = async (cardId) => {
+  try {
+    const card = await cardModel.findOneById(cardId);
+    if (!card) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
+    }
+    return card;
+  } catch (error) {
+    throw error;
+  }
+};
+
 const update = async (cardId, reqBody) => {
   try {
     if (!ObjectId.isValid(cardId)) {
@@ -200,7 +212,7 @@ const getCommentById = async (cardId, commentId) => {
   }
 };
 
-const uploadFile = async (cardId, file) => {
+const addAttachment = async (cardId, file) => {
   if (!ObjectId.isValid(cardId)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
   }
@@ -233,13 +245,100 @@ const uploadFile = async (cardId, file) => {
   return result;
 };
 
+const updateAttachment = async (cardId, attachmentId, reqBody) => {
+  try {
+    if (!ObjectId.isValid(cardId)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
+    }
+
+    if (!ObjectId.isValid(attachmentId)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid attachmentId!");
+    }
+
+    const card = await cardModel.findOneById(cardId);
+    if (!card) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
+    }
+
+    const existingAttachment = await cardModel.getAttachmentById(
+      cardId,
+      attachmentId
+    );
+    if (!existingAttachment) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "Attachment not found!");
+    }
+
+    if (!reqBody.fileName) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "File name is required!");
+    }
+
+    const updateData = { fileName: reqBody.fileName };
+
+    const updatedCard = await cardModel.updateAttachment(
+      cardId,
+      attachmentId,
+      updateData
+    );
+    if (!updatedCard) {
+      throw new ApiError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        "Failed to update attachment!"
+      );
+    }
+
+    return updatedCard;
+  } catch (error) {
+    throw error;
+  }
+};
+
+const deleteAttachment = async (cardId, attachmentId) => {
+  try {
+    if (!ObjectId.isValid(cardId)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
+    }
+
+    if (!ObjectId.isValid(attachmentId)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid attachmentId!");
+    }
+
+    const card = await cardModel.findOneById(cardId);
+    if (!card) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
+    }
+
+    const existingAttachment = await cardModel.getAttachmentById(
+      cardId,
+      attachmentId
+    );
+    if (!existingAttachment) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "Attachment not found!");
+    }
+
+    const updatedCard = await cardModel.deleteAttachment(cardId, attachmentId);
+    if (!updatedCard) {
+      throw new ApiError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        "Failed to delete attachment!"
+      );
+    }
+
+    return updatedCard;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const cardService = {
   createNew,
+  getDetails,
   update,
   addComment,
   updateComment,
   deleteComment,
   getComments,
   getCommentById,
-  uploadFile,
+  addAttachment,
+  updateAttachment,
+  deleteAttachment,
 };

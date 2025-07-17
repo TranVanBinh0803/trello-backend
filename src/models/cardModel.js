@@ -158,6 +158,17 @@ const getComments = async (cardId) => {
   return card ? card.comments || [] : [];
 };
 
+const getAttachmentById = async (cardId, attachmentId) => {
+  const card = await getCollection().findOne(
+    { 
+      _id: new ObjectId(cardId),
+      'attachments._id': new ObjectId(attachmentId)
+    },
+    { projection: { 'attachments.$': 1 } }
+  );
+  return card && card.attachments ? card.attachments[0] : null;
+};
+
 const addAttachment = async (cardId, attachmentData) => {
   
   const newAttachment = {
@@ -171,6 +182,34 @@ const addAttachment = async (cardId, attachmentData) => {
     { _id: new ObjectId(cardId) },
     {
       $push: { attachments: newAttachment },
+      $set: { updatedAt: Date.now() },
+    },
+    { returnDocument: "after" }
+  );
+};
+
+const updateAttachment = async (cardId, attachmentId, updateData) => {
+  const filteredData = {
+    'attachments.$.fileName': updateData.fileName,
+    'attachments.$.updatedAt': Date.now(),
+    'updatedAt': Date.now()
+  };
+
+  return await getCollection().findOneAndUpdate(
+    { 
+      _id: new ObjectId(cardId),
+      'attachments._id': new ObjectId(attachmentId)
+    },
+    { $set: filteredData },
+    { returnDocument: "after" }
+  );
+};
+
+const deleteAttachment = async (cardId, attachmentId) => {
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(cardId) },
+    {
+      $pull: { attachments: { _id: new ObjectId(attachmentId) } },
       $set: { updatedAt: Date.now() },
     },
     { returnDocument: "after" }
@@ -200,5 +239,8 @@ export const cardModel = {
   generatePlaceholderCard,
   deleteOneById,
   removeCardsByColumnId,
-  addAttachment
+  addAttachment,
+  updateAttachment,
+  deleteAttachment,
+  getAttachmentById
 };

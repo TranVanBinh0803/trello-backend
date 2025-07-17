@@ -13,6 +13,7 @@ Router.route("/").post(
   cardController.createNew
 );
 Router.route("/:id").patch(verifyToken, cardController.update);
+Router.route("/:id").get(verifyToken, cardController.getDetails);
 
 // Comment routes
 Router.route("/:id/comments")
@@ -24,11 +25,13 @@ Router.route("/:cardId/comments/:commentId")
   .patch(verifyToken, cardController.updateComment)
   .delete(verifyToken, cardController.deleteComment);
 
-
-Router.route("/:cardId/uploadFile").post(
+Router.route("/:cardId/attachments").post(
   verifyToken,
   upload.single("file"),
-  cardController.uploadFile
+  cardController.addAttachment
 );
+Router.route("/:cardId/attachments/:attachmentId")
+  .patch(verifyToken, cardController.updateAttachment)
+  .delete(verifyToken, cardController.deleteAttachment);
 
 export const cardRoute = Router;

@@ -19,6 +19,18 @@ const createNew = async (req, res, next) => {
   }
 };
 
+const getDetails = async (req, res, next) => {
+  try {
+    const cardId = req.params.id;
+    const card = await cardService.getDetails(cardId);
+    res
+      .status(StatusCodes.OK)
+      .json(new ApiResponse(StatusCodes.OK, "Get detail card successfully", card));
+  } catch (error) {
+    next(error);
+  }
+};
+
 const update = async (req, res, next) => {
   try {
     const cardId = req.params.id;
@@ -136,15 +148,60 @@ const getCommentById = async (req, res, next) => {
   }
 };
 
-const uploadFile = async (req, res, next) => {
+const addAttachment = async (req, res, next) => {
   try {
     const cardId = req.params.cardId;
     const file = req.file;
-    const result = await cardService.uploadFile(cardId, file);
+    const result = await cardService.addAttachment(cardId, file);
     res
       .status(StatusCodes.OK)
       .json(
-        new ApiResponse(StatusCodes.OK, "Upload file successfully", result)
+        new ApiResponse(StatusCodes.OK, "Add attachment successfully", result)
+      );
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateAttachment = async (req, res, next) => {
+  try {
+    const cardId = req.params.cardId;
+    const attachmentId = req.params.attachmentId;
+    const reqBody = req.body;
+
+    const updatedCard = await cardService.updateAttachment(
+      cardId,
+      attachmentId,
+      reqBody
+    );
+    res
+      .status(StatusCodes.OK)
+      .json(
+        new ApiResponse(
+          StatusCodes.OK,
+          "Attachment updated successfully",
+          updatedCard
+        )
+      );
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteAttachment = async (req, res, next) => {
+  try {
+    const cardId = req.params.cardId;
+    const attachmentId = req.params.attachmentId;
+
+    const updatedCard = await cardService.deleteAttachment(cardId, attachmentId);
+    res
+      .status(StatusCodes.OK)
+      .json(
+        new ApiResponse(
+          StatusCodes.OK,
+          "Attachment deleted successfully",
+          updatedCard
+        )
       );
   } catch (error) {
     next(error);
@@ -153,11 +210,14 @@ const uploadFile = async (req, res, next) => {
 
 export const cardController = {
   createNew,
+  getDetails,
   update,
   addComment,
   updateComment,
   deleteComment,
   getComments,
   getCommentById,
-  uploadFile,
+  addAttachment,
+  updateAttachment,
+  deleteAttachment
 };
