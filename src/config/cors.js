@@ -14,6 +14,6 @@ export const corsOptions = {
     return callback(new ApiError(StatusCodes.FORBIDDEN, `${origin} not allowed by our CORS Policy.`))
   },
   optionsSuccessStatus: 200,
-  //   CORS sẽ cho phép nhận cookies từ requestrequest    
+  //   CORS sẽ cho phép nhận cookies từ request
   credentials: true
 }

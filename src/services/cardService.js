@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-catch */
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { StatusCodes } from "http-status-codes";
 import { ObjectId } from "mongodb";
@@ -8,217 +7,262 @@ import { s3 } from "~/utils/configAWS";
 import { sanitizeFilename } from "~/utils/helpers";
 import { ApiError } from "~/utils/types";
 
-const createNew = async (reqBody) => {
-  try {
-    const createdCard = await cardModel.createNew(reqBody);
-    const newCardId = createdCard.insertedId;
+const getActor = (user) => ({
+  actorId: user?._id?.toString() || null,
+  actorName: user?.username || "Someone",
+  actorAvatar: user?.avatar || null,
+});
 
-    const getNewCard = await cardModel.findOneById(new ObjectId(newCardId));
+const createActivity = (user, action, message) => ({
+  ...getActor(user),
+  action,
+  message,
+});
 
-    await columnModel.pushCardOrderIds(
-      getNewCard.columnId.toString(),
-      newCardId
+const getUpdateActivities = (card, reqBody, user) => {
+  const activities = [];
+
+  if (reqBody.title && reqBody.title !== card.title) {
+    activities.push(
+      createActivity(user, "update_title", `renamed this card to "${reqBody.title}"`)
     );
-    return getNewCard;
-  } catch (error) {
-    throw error;
   }
+
+  if (
+    Object.prototype.hasOwnProperty.call(reqBody, "description") &&
+    reqBody.description !== card.description
+  ) {
+    activities.push(createActivity(user, "update_description", "updated the description"));
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(reqBody, "completed") &&
+    reqBody.completed !== card.completed
+  ) {
+    activities.push(
+      createActivity(
+        user,
+        "update_completed",
+        reqBody.completed ? "marked this card complete" : "marked this card incomplete"
+      )
+    );
+  }
+
+  if (Object.prototype.hasOwnProperty.call(reqBody, "labels")) {
+    activities.push(createActivity(user, "update_labels", "updated labels"));
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(reqBody, "startDate") ||
+    Object.prototype.hasOwnProperty.call(reqBody, "dueDate")
+  ) {
+    activities.push(createActivity(user, "update_dates", "updated dates"));
+  }
+
+  if (Object.prototype.hasOwnProperty.call(reqBody, "checklists")) {
+    activities.push(createActivity(user, "update_checklist", "updated checklist"));
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(reqBody, "cover") &&
+    reqBody.cover !== card.cover
+  ) {
+    activities.push(createActivity(user, "update_cover", "updated the cover"));
+  }
+
+  return activities;
+};
+
+const createNew = async (reqBody, user) => {
+  const createdCard = await cardModel.createNew(reqBody);
+  const newCardId = createdCard.insertedId;
+
+  const getNewCard = await cardModel.findOneById(new ObjectId(newCardId));
+
+  await columnModel.pushCardOrderIds(getNewCard.columnId.toString(), newCardId);
+  return await cardModel.pushActivity(
+    newCardId,
+    createActivity(user, "create_card", "created this card")
+  );
 };
 
 const getDetails = async (cardId) => {
-  try {
-    const card = await cardModel.findOneById(cardId);
-    if (!card) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-    }
-    return card;
-  } catch (error) {
-    throw error;
+  const card = await cardModel.findOneById(cardId);
+  if (!card) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
   }
+  return card;
 };
 
-const update = async (cardId, reqBody) => {
-  try {
-    if (!ObjectId.isValid(cardId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
-    }
-    const card = await cardModel.findOneById(cardId);
-    if (!card) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-    }
-    const updatedCard = await cardModel.update(cardId, reqBody);
-
-    if (!updatedCard) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Card update failed!");
-    }
-
-    return updatedCard;
-  } catch (error) {
-    throw error;
-  }
-};
-
-const addComment = async (cardId, reqBody) => {
-  try {
-    if (!ObjectId.isValid(cardId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
-    }
-
-    const card = await cardModel.findOneById(cardId);
-    if (!card) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-    }
-
-    if (!reqBody.authorName || !reqBody.content) {
-      throw new ApiError(
-        StatusCodes.BAD_REQUEST,
-        "Author name and content are required!"
-      );
-    }
-
-    const updatedCard = await cardModel.addComment(cardId, reqBody);
-    if (!updatedCard) {
-      throw new ApiError(
-        StatusCodes.INTERNAL_SERVER_ERROR,
-        "Failed to add comment!"
-      );
-    }
-
-    return updatedCard;
-  } catch (error) {
-    throw error;
-  }
-};
-
-const updateComment = async (cardId, commentId, reqBody) => {
-  try {
-    if (!ObjectId.isValid(cardId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
-    }
-
-    if (!ObjectId.isValid(commentId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid commentId!");
-    }
-
-    const card = await cardModel.findOneById(cardId);
-    if (!card) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-    }
-
-    const existingComment = await cardModel.getCommentById(cardId, commentId);
-    if (!existingComment) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Comment not found!");
-    }
-
-    if (!reqBody.content) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Content is required!");
-    }
-
-    const updateData = { content: reqBody.content };
-
-    const updatedCard = await cardModel.updateComment(
-      cardId,
-      commentId,
-      updateData
-    );
-    if (!updatedCard) {
-      throw new ApiError(
-        StatusCodes.INTERNAL_SERVER_ERROR,
-        "Failed to update comment!"
-      );
-    }
-
-    return updatedCard;
-  } catch (error) {
-    throw error;
-  }
-};
-
-const deleteComment = async (cardId, commentId) => {
-  try {
-    if (!ObjectId.isValid(cardId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
-    }
-
-    if (!ObjectId.isValid(commentId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid commentId!");
-    }
-
-    const card = await cardModel.findOneById(cardId);
-    if (!card) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-    }
-
-    const existingComment = await cardModel.getCommentById(cardId, commentId);
-    if (!existingComment) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Comment not found!");
-    }
-
-    const updatedCard = await cardModel.deleteComment(cardId, commentId);
-    if (!updatedCard) {
-      throw new ApiError(
-        StatusCodes.INTERNAL_SERVER_ERROR,
-        "Failed to delete comment!"
-      );
-    }
-
-    return updatedCard;
-  } catch (error) {
-    throw error;
-  }
-};
-
-const getComments = async (cardId) => {
-  try {
-    if (!ObjectId.isValid(cardId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
-    }
-
-    const card = await cardModel.findOneById(cardId);
-    if (!card) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-    }
-
-    const comments = await cardModel.getComments(cardId);
-    return comments;
-  } catch (error) {
-    throw error;
-  }
-};
-
-const getCommentById = async (cardId, commentId) => {
-  try {
-    if (!ObjectId.isValid(cardId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
-    }
-
-    if (!ObjectId.isValid(commentId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid commentId!");
-    }
-
-    const card = await cardModel.findOneById(cardId);
-    if (!card) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-    }
-
-    const comment = await cardModel.getCommentById(cardId, commentId);
-    if (!comment) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Comment not found!");
-    }
-
-    return comment;
-  } catch (error) {
-    throw error;
-  }
-};
-
-const addAttachment = async (cardId, file) => {
+const update = async (cardId, reqBody, user) => {
   if (!ObjectId.isValid(cardId)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
   }
-  if (!file) throw new Error("File is required");
+  const card = await cardModel.findOneById(cardId);
+  if (!card) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
+  }
+  const activities = getUpdateActivities(card, reqBody, user);
+  let updatedCard = await cardModel.update(cardId, reqBody);
 
-  // Generate a safe filename
+  if (!updatedCard) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Card update failed!");
+  }
+
+  if (activities.length) {
+    updatedCard = await cardModel.pushActivities(cardId, activities);
+  }
+
+  return updatedCard;
+};
+
+const addComment = async (cardId, reqBody, user) => {
+  if (!ObjectId.isValid(cardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
+  }
+
+  const card = await cardModel.findOneById(cardId);
+  if (!card) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
+  }
+
+  if (!reqBody.authorName || !reqBody.content) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Author name and content are required!"
+    );
+  }
+
+  let updatedCard = await cardModel.addComment(cardId, reqBody);
+  if (!updatedCard) {
+    throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Failed to add comment!");
+  }
+  updatedCard = await cardModel.pushActivity(
+    cardId,
+    createActivity(user, "add_comment", "commented on this card")
+  );
+
+  return updatedCard;
+};
+
+const updateComment = async (cardId, commentId, reqBody, user) => {
+  if (!ObjectId.isValid(cardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
+  }
+
+  if (!ObjectId.isValid(commentId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid commentId!");
+  }
+
+  const card = await cardModel.findOneById(cardId);
+  if (!card) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
+  }
+
+  const existingComment = await cardModel.getCommentById(cardId, commentId);
+  if (!existingComment) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Comment not found!");
+  }
+
+  if (!reqBody.content) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Content is required!");
+  }
+
+  const updateData = { content: reqBody.content };
+
+  let updatedCard = await cardModel.updateComment(cardId, commentId, updateData);
+  if (!updatedCard) {
+    throw new ApiError(
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      "Failed to update comment!"
+    );
+  }
+  updatedCard = await cardModel.pushActivity(
+    cardId,
+    createActivity(user, "update_comment", "edited a comment")
+  );
+
+  return updatedCard;
+};
+
+const deleteComment = async (cardId, commentId, user) => {
+  if (!ObjectId.isValid(cardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
+  }
+
+  if (!ObjectId.isValid(commentId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid commentId!");
+  }
+
+  const card = await cardModel.findOneById(cardId);
+  if (!card) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
+  }
+
+  const existingComment = await cardModel.getCommentById(cardId, commentId);
+  if (!existingComment) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Comment not found!");
+  }
+
+  let updatedCard = await cardModel.deleteComment(cardId, commentId);
+  if (!updatedCard) {
+    throw new ApiError(
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      "Failed to delete comment!"
+    );
+  }
+  updatedCard = await cardModel.pushActivity(
+    cardId,
+    createActivity(user, "delete_comment", "deleted a comment")
+  );
+
+  return updatedCard;
+};
+
+const getComments = async (cardId) => {
+  if (!ObjectId.isValid(cardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
+  }
+
+  const card = await cardModel.findOneById(cardId);
+  if (!card) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
+  }
+
+  const comments = await cardModel.getComments(cardId);
+  return comments;
+};
+
+const getCommentById = async (cardId, commentId) => {
+  if (!ObjectId.isValid(cardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
+  }
+
+  if (!ObjectId.isValid(commentId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid commentId!");
+  }
+
+  const card = await cardModel.findOneById(cardId);
+  if (!card) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
+  }
+
+  const comment = await cardModel.getCommentById(cardId, commentId);
+  if (!comment) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Comment not found!");
+  }
+
+  return comment;
+};
+
+const addAttachment = async (cardId, file, user) => {
+  if (!ObjectId.isValid(cardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
+  }
+  if (!file) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "File is required");
+  }
+
   const sanitizedFilename = sanitizeFilename(file.originalname);
   const s3Key = `${Date.now()}-${sanitizedFilename}`;
 
@@ -233,100 +277,103 @@ const addAttachment = async (cardId, file) => {
 
   const fileUrl = `https://${process.env.S3_ATTACHMENT_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
   const attachmentData = {
-    fileUrl: fileUrl,
+    fileUrl,
     fileName: file.originalname,
   };
-  const result = await cardModel.addAttachment(cardId, attachmentData);
+  await cardModel.addAttachment(cardId, attachmentData);
 
   const isImage = file.mimetype.startsWith("image/");
   if (isImage) {
     await cardModel.update(cardId, { cover: fileUrl });
   }
-  return result;
+  return await cardModel.pushActivity(
+    cardId,
+    createActivity(user, "add_attachment", `added attachment "${file.originalname}"`)
+  );
 };
 
-const updateAttachment = async (cardId, attachmentId, reqBody) => {
-  try {
-    if (!ObjectId.isValid(cardId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
-    }
-
-    if (!ObjectId.isValid(attachmentId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid attachmentId!");
-    }
-
-    const card = await cardModel.findOneById(cardId);
-    if (!card) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-    }
-
-    const existingAttachment = await cardModel.getAttachmentById(
-      cardId,
-      attachmentId
-    );
-    if (!existingAttachment) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Attachment not found!");
-    }
-
-    if (!reqBody.fileName) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "File name is required!");
-    }
-
-    const updateData = { fileName: reqBody.fileName };
-
-    const updatedCard = await cardModel.updateAttachment(
-      cardId,
-      attachmentId,
-      updateData
-    );
-    if (!updatedCard) {
-      throw new ApiError(
-        StatusCodes.INTERNAL_SERVER_ERROR,
-        "Failed to update attachment!"
-      );
-    }
-
-    return updatedCard;
-  } catch (error) {
-    throw error;
+const updateAttachment = async (cardId, attachmentId, reqBody, user) => {
+  if (!ObjectId.isValid(cardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
   }
+
+  if (!ObjectId.isValid(attachmentId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid attachmentId!");
+  }
+
+  const card = await cardModel.findOneById(cardId);
+  if (!card) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
+  }
+
+  const existingAttachment = await cardModel.getAttachmentById(
+    cardId,
+    attachmentId
+  );
+  if (!existingAttachment) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Attachment not found!");
+  }
+
+  if (!reqBody.fileName) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "File name is required!");
+  }
+
+  const updateData = { fileName: reqBody.fileName };
+
+  let updatedCard = await cardModel.updateAttachment(
+    cardId,
+    attachmentId,
+    updateData
+  );
+  if (!updatedCard) {
+    throw new ApiError(
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      "Failed to update attachment!"
+    );
+  }
+  updatedCard = await cardModel.pushActivity(
+    cardId,
+    createActivity(user, "update_attachment", "renamed an attachment")
+  );
+
+  return updatedCard;
 };
 
-const deleteAttachment = async (cardId, attachmentId) => {
-  try {
-    if (!ObjectId.isValid(cardId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
-    }
-
-    if (!ObjectId.isValid(attachmentId)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid attachmentId!");
-    }
-
-    const card = await cardModel.findOneById(cardId);
-    if (!card) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-    }
-
-    const existingAttachment = await cardModel.getAttachmentById(
-      cardId,
-      attachmentId
-    );
-    if (!existingAttachment) {
-      throw new ApiError(StatusCodes.NOT_FOUND, "Attachment not found!");
-    }
-
-    const updatedCard = await cardModel.deleteAttachment(cardId, attachmentId);
-    if (!updatedCard) {
-      throw new ApiError(
-        StatusCodes.INTERNAL_SERVER_ERROR,
-        "Failed to delete attachment!"
-      );
-    }
-
-    return updatedCard;
-  } catch (error) {
-    throw error;
+const deleteAttachment = async (cardId, attachmentId, user) => {
+  if (!ObjectId.isValid(cardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
   }
+
+  if (!ObjectId.isValid(attachmentId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid attachmentId!");
+  }
+
+  const card = await cardModel.findOneById(cardId);
+  if (!card) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
+  }
+
+  const existingAttachment = await cardModel.getAttachmentById(
+    cardId,
+    attachmentId
+  );
+  if (!existingAttachment) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Attachment not found!");
+  }
+
+  let updatedCard = await cardModel.deleteAttachment(cardId, attachmentId);
+  if (!updatedCard) {
+    throw new ApiError(
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      "Failed to delete attachment!"
+    );
+  }
+  updatedCard = await cardModel.pushActivity(
+    cardId,
+    createActivity(user, "delete_attachment", "deleted an attachment")
+  );
+
+  return updatedCard;
 };
 
 export const cardService = {

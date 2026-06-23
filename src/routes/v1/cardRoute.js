@@ -1,5 +1,6 @@
 import express from "express";
 import { cardController } from "~/controllers/cardController";
+import { asyncHandler } from "~/middlewares/errorHandlingMiddleware";
 import { verifyToken } from "~/middlewares/authMiddleware";
 import upload from "~/utils/configMulter";
 import { cardValidation } from "~/validations/cardValidation";
@@ -10,28 +11,28 @@ const Router = express.Router();
 Router.route("/").post(
   cardValidation.createNew,
   verifyToken,
-  cardController.createNew
+  asyncHandler(cardController.createNew)
 );
-Router.route("/:id").patch(verifyToken, cardController.update);
-Router.route("/:id").get(verifyToken, cardController.getDetails);
+Router.route("/:id").patch(verifyToken, asyncHandler(cardController.update));
+Router.route("/:id").get(verifyToken, asyncHandler(cardController.getDetails));
 
 // Comment routes
 Router.route("/:id/comments")
-  .get(verifyToken, cardController.getComments)
-  .post(verifyToken, cardController.addComment);
+  .get(verifyToken, asyncHandler(cardController.getComments))
+  .post(verifyToken, asyncHandler(cardController.addComment));
 
 Router.route("/:cardId/comments/:commentId")
-  .get(verifyToken, cardController.getCommentById)
-  .patch(verifyToken, cardController.updateComment)
-  .delete(verifyToken, cardController.deleteComment);
+  .get(verifyToken, asyncHandler(cardController.getCommentById))
+  .patch(verifyToken, asyncHandler(cardController.updateComment))
+  .delete(verifyToken, asyncHandler(cardController.deleteComment));
 
 Router.route("/:cardId/attachments").post(
   verifyToken,
   upload.single("file"),
-  cardController.addAttachment
+  asyncHandler(cardController.addAttachment)
 );
 Router.route("/:cardId/attachments/:attachmentId")
-  .patch(verifyToken, cardController.updateAttachment)
-  .delete(verifyToken, cardController.deleteAttachment);
+  .patch(verifyToken, asyncHandler(cardController.updateAttachment))
+  .delete(verifyToken, asyncHandler(cardController.deleteAttachment));
 
 export const cardRoute = Router;

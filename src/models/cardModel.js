@@ -22,6 +22,36 @@ const ATTACHMENT_SCHEMA = Joi.object({
   updatedAt: Joi.date().timestamp("javascript").optional(),
 });
 
+const ACTIVITY_SCHEMA = Joi.object({
+  _id: Joi.string().optional(),
+  actorId: Joi.string().allow(null, "").optional(),
+  actorName: Joi.string().required().min(1).max(100).trim(),
+  actorAvatar: Joi.string().uri().allow(null, "").optional(),
+  action: Joi.string().required().min(1).max(50).trim(),
+  message: Joi.string().required().min(1).max(300).trim(),
+  createdAt: Joi.date().timestamp("javascript").optional(),
+});
+
+const LABEL_SCHEMA = Joi.object({
+  _id: Joi.string().optional(),
+  title: Joi.string().allow("").max(50).default(""),
+  color: Joi.string().required().min(1).max(30).trim(),
+});
+
+const CHECKLIST_ITEM_SCHEMA = Joi.object({
+  _id: Joi.string().optional(),
+  title: Joi.string().required().min(1).max(200).trim(),
+  completed: Joi.boolean().default(false),
+  createdAt: Joi.date().timestamp("javascript").optional(),
+});
+
+const CHECKLIST_SCHEMA = Joi.object({
+  _id: Joi.string().optional(),
+  title: Joi.string().required().min(1).max(100).trim(),
+  items: Joi.array().items(CHECKLIST_ITEM_SCHEMA).default([]),
+  createdAt: Joi.date().timestamp("javascript").optional(),
+});
+
 const CARD_COLLECTION_SCHEMA = Joi.object({
   boardId: Joi.string()
     .required()
@@ -34,8 +64,14 @@ const CARD_COLLECTION_SCHEMA = Joi.object({
 
   title: Joi.string().required().min(3).max(50).trim().strict(),
   description: Joi.string().optional(),
+  completed: Joi.boolean().default(false),
+  labels: Joi.array().items(LABEL_SCHEMA).default([]),
+  startDate: Joi.string().allow(null, "").default(null),
+  dueDate: Joi.string().allow(null, "").default(null),
+  checklists: Joi.array().items(CHECKLIST_SCHEMA).default([]),
   comments: Joi.array().items(COMMENT_SCHEMA).optional(),
   attachments: Joi.array().items(ATTACHMENT_SCHEMA).optional(),
+  activities: Joi.array().items(ACTIVITY_SCHEMA).default([]),
   createdAt: Joi.date().timestamp("javascript").default(Date.now),
   updatedAt: Joi.date().timestamp("javascript").default(null),
   _destroy: Joi.boolean().default(false),
@@ -54,6 +90,12 @@ const validateComment = async (data) => {
     abortEarly: false,
   });
 };
+
+const normalizeActivity = (activity) => ({
+  ...activity,
+  _id: new ObjectId(),
+  createdAt: activity.createdAt || Date.now(),
+});
 
 const createNew = async (data) => {
   const validData = await validateBeforeCreate(data);
@@ -89,6 +131,23 @@ const update = async (cardId, updateData) => {
     { $set: { ...updateData, updatedAt: Date.now() } },
     { returnDocument: "after" }
   );
+};
+
+const pushActivities = async (cardId, activities) => {
+  const normalizedActivities = activities.map(normalizeActivity);
+
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(cardId) },
+    {
+      $push: { activities: { $each: normalizedActivities } },
+      $set: { updatedAt: Date.now() },
+    },
+    { returnDocument: "after" }
+  );
+};
+
+const pushActivity = async (cardId, activity) => {
+  return await pushActivities(cardId, [activity]);
 };
 
 const addComment = async (cardId, commentData) => {
@@ -242,5 +301,7 @@ export const cardModel = {
   addAttachment,
   updateAttachment,
   deleteAttachment,
-  getAttachmentById
+  getAttachmentById,
+  pushActivity,
+  pushActivities,
 };

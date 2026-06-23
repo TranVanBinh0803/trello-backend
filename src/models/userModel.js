@@ -40,7 +40,20 @@ const updateProfile = async (userId, updateData) => {
   return await getCollection().findOneAndUpdate(
     { _id: new ObjectId(userId) },
     {
-      $set:{ ...updateData, updatedAt: Date.now() },
+      $set: { ...updateData, updatedAt: Date.now() },
+    },
+    { returnDocument: "after" }
+  );
+};
+
+const updatePassword = async (userId, hashedPassword) => {
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(userId) },
+    {
+      $set: {
+        password: hashedPassword,
+        updatedAt: Date.now(),
+      },
     },
     { returnDocument: "after" }
   );
@@ -53,4 +66,5 @@ export const userModel = {
   findOneById,
   findOneByEmail,
   updateProfile,
+  updatePassword,
 };
