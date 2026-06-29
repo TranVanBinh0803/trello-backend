@@ -38,3 +38,29 @@ export const verifyToken = async (req, res, next) => {
       );
   }
 };
+
+export const optionalVerifyToken = async (req, res, next) => {
+  try {
+    let token = req.headers.authorization;
+
+    if (!token) {
+      next();
+      return;
+    }
+
+    if (token.startsWith("Bearer ")) {
+      token = token.slice(7, token.length).trimLeft();
+    }
+
+    const decoded = jwt.decode(token);
+    if (!decoded?.userId) {
+      next();
+      return;
+    }
+
+    req.user = await userModel.findOneById(decoded.userId);
+    next();
+  } catch {
+    next();
+  }
+};

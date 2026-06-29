@@ -4,11 +4,18 @@ import { cloneDeep } from "lodash";
 import { ObjectId } from "mongodb";
 import { boardModel } from "~/models/boardModel";
 import { boardInvitationModel } from "~/models/boardInvitationModel";
+import { boardPrivateUpgradePaymentModel } from "~/models/boardPrivateUpgradePaymentModel";
 import { cardModel } from "~/models/cardModel";
 import { columnModel } from "~/models/columnModel";
 import { userModel } from "~/models/userModel";
+import {
+  assertBoardMember,
+  assertCanReadBoard,
+} from "~/utils/boardPermissions";
+import { BOARD_TYPES } from "~/utils/constants";
 import { slugify } from "~/utils/helpers";
 import { ApiError } from "~/utils/types";
+import { vnpayUtils } from "~/utils/vnpay";
 
 const IMPORT_LABEL_COLORS = [
   "#4bce97",
@@ -40,10 +47,28 @@ const mapCardsToColumns = (board) => {
   return resBoard;
 };
 
+const isBoardOwner = (board, userId) => {
+  return board.ownerIds?.some((ownerId) => ownerId.toString() === userId.toString());
+};
+
+const buildRestoredColumnOrderIds = (board, column) => {
+  const activeColumnIds = new Set(
+    board.columnOrderIds?.map((columnId) => columnId.toString()) || []
+  );
+  const restoreColumnId = column._id.toString();
+  const previousColumnOrderIds =
+    column.previousBoardColumnOrderIds?.map((columnId) => columnId.toString()) || [];
+
+  return previousColumnOrderIds.filter(
+    (columnId) => columnId === restoreColumnId || activeColumnIds.has(columnId)
+  );
+};
+
 const createNew = async (reqBody, ownerId) => {
   const memberIds = ownerId ? [new ObjectId(ownerId)] : [];
   const newBoard = {
     ...reqBody,
+    type: BOARD_TYPES.PUBLIC,
     slug: slugify(reqBody.title),
     ownerIds: memberIds,
     memberIds,
@@ -54,6 +79,133 @@ const createNew = async (reqBody, ownerId) => {
   return getNewBoard;
 };
 
+const getVnpayConfig = () => {
+  if (!process.env.VNPAY_TMN_CODE || !process.env.VNPAY_HASH_SECRET) {
+    throw new ApiError(
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      "VNPAY sandbox config is missing!"
+    );
+  }
+
+  const appHost = process.env.APP_HOST;
+  const appPort = process.env.APP_PORT;
+
+  return {
+    amount: Number(process.env.PRIVATE_BOARD_UPGRADE_AMOUNT || 10000),
+    frontendUrl: process.env.FRONTEND_URL,
+    hashSecret: process.env.VNPAY_HASH_SECRET,
+    returnUrl:
+      process.env.VNPAY_RETURN_URL ||
+      `http://${appHost}:${appPort}/v1/boards/vnpay-return`,
+    tmnCode: process.env.VNPAY_TMN_CODE,
+  };
+};
+
+const buildPaymentRedirectUrl = (frontendUrl, boardId, status) => {
+  return `${frontendUrl}/boards/${boardId}?payment=${status}`;
+};
+
+const createPrivateUpgradePayment = async (boardId, userId, clientIp) => {
+  if (!ObjectId.isValid(boardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid boardId!");
+  }
+  if (!ObjectId.isValid(userId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid userId!");
+  }
+
+  const board = await boardModel.findOneById(boardId);
+  if (!board || board._destroy) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
+  }
+  if (!isBoardOwner(board, userId)) {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      "Only board owners can upgrade this board!"
+    );
+  }
+  if (board.type === BOARD_TYPES.PRIVATE) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Board is already private!");
+  }
+
+  const vnpayConfig = getVnpayConfig();
+  const txnRef = `PRIVATE_${boardId}_${Date.now()}`;
+
+  await boardPrivateUpgradePaymentModel.createNew({
+    boardId,
+    userId,
+    txnRef,
+    amount: vnpayConfig.amount,
+  });
+
+  return {
+    amount: vnpayConfig.amount,
+    paymentUrl: vnpayUtils.buildPaymentUrl({
+      amount: vnpayConfig.amount,
+      clientIp,
+      hashSecret: vnpayConfig.hashSecret,
+      orderInfo: `Upgrade board ${board.title} to private`,
+      returnUrl: vnpayConfig.returnUrl,
+      tmnCode: vnpayConfig.tmnCode,
+      txnRef,
+    }),
+    txnRef,
+  };
+};
+
+const handleVnpayPrivateUpgradeReturn = async (query) => {
+  const vnpayConfig = getVnpayConfig();
+  const txnRef = query.vnp_TxnRef;
+  const payment = txnRef
+    ? await boardPrivateUpgradePaymentModel.findOneByTxnRef(txnRef)
+    : null;
+  const boardId = payment?.boardId?.toString();
+  const fallbackUrl = `${vnpayConfig.frontendUrl}/boards?payment=invalid`;
+
+  if (!payment || !boardId) {
+    return fallbackUrl;
+  }
+
+  const isValidSignature = vnpayUtils.verifyReturnParams(
+    query,
+    vnpayConfig.hashSecret
+  );
+
+  if (!isValidSignature) {
+    await boardPrivateUpgradePaymentModel.updateStatus(txnRef, {
+      status: boardPrivateUpgradePaymentModel
+        .BOARD_PRIVATE_UPGRADE_PAYMENT_STATUS.FAILED,
+      vnpResponseCode: query.vnp_ResponseCode || null,
+      vnpTransactionNo: query.vnp_TransactionNo || null,
+    });
+    return buildPaymentRedirectUrl(vnpayConfig.frontendUrl, boardId, "invalid");
+  }
+
+  const isPaid =
+    query.vnp_ResponseCode === "00" && query.vnp_TransactionStatus === "00";
+
+  if (!isPaid) {
+    await boardPrivateUpgradePaymentModel.updateStatus(txnRef, {
+      status: boardPrivateUpgradePaymentModel
+        .BOARD_PRIVATE_UPGRADE_PAYMENT_STATUS.FAILED,
+      vnpResponseCode: query.vnp_ResponseCode || null,
+      vnpTransactionNo: query.vnp_TransactionNo || null,
+    });
+    return buildPaymentRedirectUrl(vnpayConfig.frontendUrl, boardId, "failed");
+  }
+
+  await boardPrivateUpgradePaymentModel.updateStatus(txnRef, {
+    status: boardPrivateUpgradePaymentModel.BOARD_PRIVATE_UPGRADE_PAYMENT_STATUS.PAID,
+    vnpResponseCode: query.vnp_ResponseCode || null,
+    vnpTransactionNo: query.vnp_TransactionNo || null,
+  });
+  await boardModel.updateType(boardId, BOARD_TYPES.PRIVATE, {
+    privateUpgradedAt: Date.now(),
+    privateUpgradeTxnRef: txnRef,
+  });
+
+  return buildPaymentRedirectUrl(vnpayConfig.frontendUrl, boardId, "success");
+};
+
 const getMyBoards = async (userId) => {
   if (!ObjectId.isValid(userId)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid userId!");
@@ -61,7 +213,15 @@ const getMyBoards = async (userId) => {
   return await boardModel.findByMemberId(userId);
 };
 
-const getDetails = async (boardId) => {
+const getArchivedBoards = async (userId) => {
+  if (!ObjectId.isValid(userId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid userId!");
+  }
+  return await boardModel.findArchivedByMemberId(userId);
+};
+
+const getDetails = async (boardId, userId) => {
+  await assertCanReadBoard(boardId, userId);
   const board = await boardModel.getDetails(boardId);
   if (!board) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
@@ -69,10 +229,21 @@ const getDetails = async (boardId) => {
   return mapCardsToColumns(board);
 };
 
-const dragColumn = async (boardId, columnOrderIds) => {
+const getArchivedItems = async (boardId, userId) => {
+  await assertBoardMember(boardId, userId);
+  const [columns, cards] = await Promise.all([
+    columnModel.findArchivedByBoardId(boardId),
+    cardModel.findArchivedByBoardId(boardId),
+  ]);
+
+  return { columns, cards };
+};
+
+const dragColumn = async (boardId, columnOrderIds, userId) => {
   if (!ObjectId.isValid(boardId)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid boardId!");
   }
+  await assertBoardMember(boardId, userId);
   const board = await boardModel.findOneById(boardId);
   if (!board) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
@@ -87,13 +258,14 @@ const dragColumn = async (boardId, columnOrderIds) => {
   return updatedBoard;
 };
 
-const archiveColumn = async (boardId, data) => {
+const archiveColumn = async (boardId, data, userId) => {
   if (!ObjectId.isValid(boardId)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid boardId!");
   }
   if (!ObjectId.isValid(data.columnId)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid columnId!");
   }
+  await assertBoardMember(boardId, userId);
   const board = await boardModel.findOneById(new ObjectId(boardId));
   if (!board) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
@@ -104,7 +276,9 @@ const archiveColumn = async (boardId, data) => {
   if (!columnExists) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Column not found in this board!");
   }
-  const result = await boardModel.archiveColumn(boardId, data);
+  const result = await boardModel.archiveColumn(boardId, data, {
+    archivedBy: userId.toString(),
+  });
 
   if (!result) {
     throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Column archive failed!");
@@ -125,10 +299,7 @@ const inviteMember = async (boardId, email, inviterId) => {
     throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
   }
 
-  const isBoardOwner = board.ownerIds?.some(
-    (ownerId) => ownerId.toString() === inviterId.toString()
-  );
-  if (!isBoardOwner) {
+  if (!isBoardOwner(board, inviterId)) {
     throw new ApiError(
       StatusCodes.FORBIDDEN,
       "Only board owners can invite members!"
@@ -163,6 +334,132 @@ const inviteMember = async (boardId, email, inviterId) => {
   });
 
   return await boardInvitationModel.findOneById(createdInvitation.insertedId);
+};
+
+const leaveBoard = async (boardId, userId) => {
+  if (!ObjectId.isValid(boardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid boardId!");
+  }
+  if (!ObjectId.isValid(userId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid userId!");
+  }
+
+  const board = await boardModel.findOneById(boardId);
+  if (!board) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
+  }
+
+  const isBoardMember = board.memberIds?.some(
+    (memberId) => memberId.toString() === userId.toString()
+  );
+  if (!isBoardMember) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "You are not a board member!");
+  }
+
+  if (isBoardOwner(board, userId)) {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      "Board owners cannot leave their own board!"
+    );
+  }
+
+  const updatedBoard = await boardModel.removeMember(boardId, userId);
+  if (!updatedBoard) {
+    throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Leave board failed!");
+  }
+
+  return updatedBoard;
+};
+
+const archiveBoard = async (boardId, userId) => {
+  if (!ObjectId.isValid(boardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid boardId!");
+  }
+  if (!ObjectId.isValid(userId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid userId!");
+  }
+
+  const board = await boardModel.findOneById(boardId);
+  if (!board || board._destroy) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Board not found!");
+  }
+
+  if (!isBoardOwner(board, userId)) {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      "Only board owners can archive this board!"
+    );
+  }
+
+  const archivedBoard = await boardModel.archiveBoard(boardId, {
+    archivedBy: userId.toString(),
+  });
+  if (!archivedBoard) {
+    throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Archive board failed!");
+  }
+
+  return archivedBoard;
+};
+
+const restoreBoard = async (boardId, userId) => {
+  if (!ObjectId.isValid(boardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid boardId!");
+  }
+  if (!ObjectId.isValid(userId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid userId!");
+  }
+
+  const board = await boardModel.findOneById(boardId);
+  if (!board || !board._destroy) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Archived board not found!");
+  }
+
+  if (!isBoardOwner(board, userId)) {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      "Only board owners can restore this board!"
+    );
+  }
+
+  const restoredBoard = await boardModel.restoreBoard(boardId);
+  if (!restoredBoard) {
+    throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Restore board failed!");
+  }
+
+  return restoredBoard;
+};
+
+const restoreColumn = async (boardId, columnId, userId) => {
+  if (!ObjectId.isValid(boardId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid boardId!");
+  }
+  if (!ObjectId.isValid(columnId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid columnId!");
+  }
+
+  const board = await assertBoardMember(boardId, userId);
+  const column = await columnModel.findOneById(columnId);
+  if (!column || !column._destroy) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Archived column not found!");
+  }
+  if (column.boardId.toString() !== boardId) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Column does not belong to board!");
+  }
+
+  const restoredColumnOrderIds = buildRestoredColumnOrderIds(board, column);
+  await boardModel.restoreColumnOrderIds(
+    boardId,
+    restoredColumnOrderIds,
+    columnId
+  );
+
+  const restoredColumn = await columnModel.restoreOneById(columnId);
+  await cardModel.restoreCardsByColumnId(columnId);
+  if (!restoredColumn) {
+    throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Restore column failed!");
+  }
+
+  return restoredColumn;
 };
 
 const importFromTemplate = async (reqBody, ownerId) => {
@@ -302,7 +599,7 @@ const buildImportTemplate = async () => {
     [
       "Imported Project",
       "Board imported from Excel template",
-      "private",
+      "public",
       "Todo",
       "Plan backlog",
       "Collect requirements",
@@ -313,7 +610,7 @@ const buildImportTemplate = async () => {
     [
       "Imported Project",
       "Board imported from Excel template",
-      "private",
+      "public",
       "Doing",
       "Build board import",
       "Implement parser and API",
@@ -324,7 +621,7 @@ const buildImportTemplate = async () => {
     [
       "Imported Project",
       "Board imported from Excel template",
-      "private",
+      "public",
       "Done",
       "Create sample file",
       "Template is ready",
@@ -343,10 +640,18 @@ const buildImportTemplate = async () => {
 export const boardService = {
   createNew,
   getMyBoards,
+  getArchivedBoards,
   getDetails,
+  getArchivedItems,
   dragColumn,
   archiveColumn,
   inviteMember,
+  leaveBoard,
+  archiveBoard,
+  restoreBoard,
+  restoreColumn,
+  createPrivateUpgradePayment,
+  handleVnpayPrivateUpgradeReturn,
   importFromTemplate,
   importFromExcel,
   buildImportTemplate,

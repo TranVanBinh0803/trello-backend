@@ -22,19 +22,49 @@ const getMyBoards = async (req, res) => {
     .json(new ApiResponse(StatusCodes.OK, "Get my boards successfully", boards));
 };
 
+const getArchivedBoards = async (req, res) => {
+  const boards = await boardService.getArchivedBoards(req.user?._id);
+  res
+    .status(StatusCodes.OK)
+    .json(
+      new ApiResponse(StatusCodes.OK, "Get archived boards successfully", boards)
+    );
+};
+
 const getDetails = async (req, res) => {
   const boardId = req.params.id;
-  const board = await boardService.getDetails(boardId);
+  const board = await boardService.getDetails(boardId, req.user?._id);
   res
     .status(StatusCodes.OK)
     .json(new ApiResponse(StatusCodes.OK, "Get detail board successfully", board));
+};
+
+const getArchivedItems = async (req, res) => {
+  const boardId = req.params.id;
+  const archivedItems = await boardService.getArchivedItems(
+    boardId,
+    req.user?._id
+  );
+  res
+    .status(StatusCodes.OK)
+    .json(
+      new ApiResponse(
+        StatusCodes.OK,
+        "Get archived board items successfully",
+        archivedItems
+      )
+    );
 };
 
 const dragColumn = async (req, res) => {
   const boardId = req.params.id;
   const { columnOrderIds } = req.body;
 
-  const updatedBoard = await boardService.dragColumn(boardId, columnOrderIds);
+  const updatedBoard = await boardService.dragColumn(
+    boardId,
+    columnOrderIds,
+    req.user?._id
+  );
   res
     .status(StatusCodes.OK)
     .json(
@@ -49,7 +79,11 @@ const dragColumn = async (req, res) => {
 const archiveColumn = async (req, res) => {
   const boardId = req.params.id;
   const columnId = req.body;
-  const updatedBoard = await boardService.archiveColumn(boardId, columnId);
+  const updatedBoard = await boardService.archiveColumn(
+    boardId,
+    columnId,
+    req.user?._id
+  );
   res
     .status(StatusCodes.OK)
     .json(
@@ -69,6 +103,78 @@ const inviteMember = async (req, res) => {
         "Board invitation sent successfully",
         invitation
       )
+    );
+};
+
+const leaveBoard = async (req, res) => {
+  const boardId = req.params.id;
+  const updatedBoard = await boardService.leaveBoard(boardId, req.user?._id);
+  res
+    .status(StatusCodes.OK)
+    .json(new ApiResponse(StatusCodes.OK, "Leave board successfully", updatedBoard));
+};
+
+const archiveBoard = async (req, res) => {
+  const boardId = req.params.id;
+  const archivedBoard = await boardService.archiveBoard(boardId, req.user?._id);
+  res
+    .status(StatusCodes.OK)
+    .json(
+      new ApiResponse(StatusCodes.OK, "Archive board successfully", archivedBoard)
+    );
+};
+
+const createPrivateUpgradePayment = async (req, res) => {
+  const boardId = req.params.id;
+  const clientIp =
+    req.headers["x-forwarded-for"]?.split(",")[0] ||
+    req.socket.remoteAddress ||
+    "127.0.0.1";
+  const payment = await boardService.createPrivateUpgradePayment(
+    boardId,
+    req.user?._id,
+    clientIp
+  );
+  res
+    .status(StatusCodes.CREATED)
+    .json(
+      new ApiResponse(
+        StatusCodes.CREATED,
+        "Create private board upgrade payment successfully",
+        payment
+      )
+    );
+};
+
+const handleVnpayPrivateUpgradeReturn = async (req, res) => {
+  const redirectUrl = await boardService.handleVnpayPrivateUpgradeReturn(
+    req.query
+  );
+  res.redirect(redirectUrl);
+};
+
+const restoreBoard = async (req, res) => {
+  const boardId = req.params.id;
+  const restoredBoard = await boardService.restoreBoard(boardId, req.user?._id);
+  res
+    .status(StatusCodes.OK)
+    .json(
+      new ApiResponse(StatusCodes.OK, "Restore board successfully", restoredBoard)
+    );
+};
+
+const restoreColumn = async (req, res) => {
+  const boardId = req.params.id;
+  const columnId = req.params.columnId;
+  const restoredColumn = await boardService.restoreColumn(
+    boardId,
+    columnId,
+    req.user?._id
+  );
+  res
+    .status(StatusCodes.OK)
+    .json(
+      new ApiResponse(StatusCodes.OK, "Restore column successfully", restoredColumn)
     );
 };
 
@@ -104,10 +210,18 @@ const downloadImportTemplate = async (req, res) => {
 export const boardController = {
   createNew,
   getMyBoards,
+  getArchivedBoards,
   getDetails,
+  getArchivedItems,
   dragColumn,
   archiveColumn,
   inviteMember,
+  leaveBoard,
+  archiveBoard,
+  createPrivateUpgradePayment,
+  handleVnpayPrivateUpgradeReturn,
+  restoreBoard,
+  restoreColumn,
   importFromTemplate,
   downloadImportTemplate,
 };

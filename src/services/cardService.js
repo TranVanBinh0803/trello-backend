@@ -4,6 +4,11 @@ import { ObjectId } from "mongodb";
 import { cardModel } from "~/models/cardModel";
 import { columnModel } from "~/models/columnModel";
 import { s3 } from "~/utils/configAWS";
+import {
+  assertBoardMember,
+  assertBoardMemberByCardId,
+  assertCanReadBoardByCardId,
+} from "~/utils/boardPermissions";
 import { sanitizeFilename } from "~/utils/helpers";
 import { ApiError } from "~/utils/types";
 
@@ -74,6 +79,7 @@ const getUpdateActivities = (card, reqBody, user) => {
 };
 
 const createNew = async (reqBody, user) => {
+  await assertBoardMember(reqBody.boardId, user?._id);
   const createdCard = await cardModel.createNew(reqBody);
   const newCardId = createdCard.insertedId;
 
@@ -86,22 +92,15 @@ const createNew = async (reqBody, user) => {
   );
 };
 
-const getDetails = async (cardId) => {
-  const card = await cardModel.findOneById(cardId);
-  if (!card) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-  }
-  return card;
+const getDetails = async (cardId, userId) => {
+  return await assertCanReadBoardByCardId(cardId, userId);
 };
 
 const update = async (cardId, reqBody, user) => {
   if (!ObjectId.isValid(cardId)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
   }
-  const card = await cardModel.findOneById(cardId);
-  if (!card) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-  }
+  const card = await assertBoardMemberByCardId(cardId, user?._id);
   const activities = getUpdateActivities(card, reqBody, user);
   let updatedCard = await cardModel.update(cardId, reqBody);
 
@@ -121,10 +120,7 @@ const addComment = async (cardId, reqBody, user) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
   }
 
-  const card = await cardModel.findOneById(cardId);
-  if (!card) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-  }
+  await assertBoardMemberByCardId(cardId, user?._id);
 
   if (!reqBody.authorName || !reqBody.content) {
     throw new ApiError(
@@ -154,10 +150,7 @@ const updateComment = async (cardId, commentId, reqBody, user) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid commentId!");
   }
 
-  const card = await cardModel.findOneById(cardId);
-  if (!card) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-  }
+  await assertBoardMemberByCardId(cardId, user?._id);
 
   const existingComment = await cardModel.getCommentById(cardId, commentId);
   if (!existingComment) {
@@ -194,10 +187,7 @@ const deleteComment = async (cardId, commentId, user) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid commentId!");
   }
 
-  const card = await cardModel.findOneById(cardId);
-  if (!card) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-  }
+  await assertBoardMemberByCardId(cardId, user?._id);
 
   const existingComment = await cardModel.getCommentById(cardId, commentId);
   if (!existingComment) {
@@ -219,21 +209,18 @@ const deleteComment = async (cardId, commentId, user) => {
   return updatedCard;
 };
 
-const getComments = async (cardId) => {
+const getComments = async (cardId, userId) => {
   if (!ObjectId.isValid(cardId)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
   }
 
-  const card = await cardModel.findOneById(cardId);
-  if (!card) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-  }
+  await assertCanReadBoardByCardId(cardId, userId);
 
   const comments = await cardModel.getComments(cardId);
   return comments;
 };
 
-const getCommentById = async (cardId, commentId) => {
+const getCommentById = async (cardId, commentId, userId) => {
   if (!ObjectId.isValid(cardId)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
   }
@@ -242,10 +229,7 @@ const getCommentById = async (cardId, commentId) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid commentId!");
   }
 
-  const card = await cardModel.findOneById(cardId);
-  if (!card) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-  }
+  await assertCanReadBoardByCardId(cardId, userId);
 
   const comment = await cardModel.getCommentById(cardId, commentId);
   if (!comment) {
@@ -259,6 +243,7 @@ const addAttachment = async (cardId, file, user) => {
   if (!ObjectId.isValid(cardId)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid cardId!");
   }
+  await assertBoardMemberByCardId(cardId, user?._id);
   if (!file) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "File is required");
   }
@@ -301,10 +286,7 @@ const updateAttachment = async (cardId, attachmentId, reqBody, user) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid attachmentId!");
   }
 
-  const card = await cardModel.findOneById(cardId);
-  if (!card) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-  }
+  await assertBoardMemberByCardId(cardId, user?._id);
 
   const existingAttachment = await cardModel.getAttachmentById(
     cardId,
@@ -348,10 +330,7 @@ const deleteAttachment = async (cardId, attachmentId, user) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid attachmentId!");
   }
 
-  const card = await cardModel.findOneById(cardId);
-  if (!card) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Card not found!");
-  }
+  await assertBoardMemberByCardId(cardId, user?._id);
 
   const existingAttachment = await cardModel.getAttachmentById(
     cardId,

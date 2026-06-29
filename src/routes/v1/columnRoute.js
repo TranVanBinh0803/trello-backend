@@ -12,6 +12,11 @@ Router.route("/").post(
   asyncHandler(columnController.createNew)
 );
 
+Router.route("/:id/cards/:cardId/restore").patch(
+  verifyToken,
+  asyncHandler(columnController.restoreCard)
+);
+
 Router.route("/:id")
   .delete(verifyToken, asyncHandler(columnController.archiveCard))
   .patch(

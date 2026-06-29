@@ -18,6 +18,12 @@ const COLUMN_COLLECTION_SCHEMA = Joi.object({
 
   createdAt: Joi.date().timestamp("javascript").default(Date.now),
   updatedAt: Joi.date().timestamp("javascript").default(null),
+  archivedAt: Joi.date().timestamp("javascript").allow(null).default(null),
+  archivedBy: Joi.string().allow(null).default(null),
+  archiveType: Joi.string().allow(null).default(null),
+  previousBoardColumnOrderIds: Joi.array()
+    .items(Joi.string().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE))
+    .default([]),
   _destroy: Joi.boolean().default(false),
 });
 
@@ -40,6 +46,16 @@ const createNew = async (data) => {
 
 const findOneById = async (id) => {
   return await getCollection().findOne({ _id: new ObjectId(id) });
+};
+
+const findArchivedByBoardId = async (boardId) => {
+  return await getCollection()
+    .find({
+      boardId: new ObjectId(boardId),
+      _destroy: true,
+    })
+    .sort({ archivedAt: -1, updatedAt: -1 })
+    .toArray();
 };
 
 const pullCardOrderIds = async (columnId, cardId) => {
@@ -72,6 +88,27 @@ const pushCardOrderIds = async (columnId, cardId) => {
   );
 };
 
+const restoreCardOrderIds = async (columnId, previousCardOrderIds, cardId) => {
+  const hasPreviousOrder = previousCardOrderIds?.length;
+  const updateData = hasPreviousOrder
+    ? {
+        $set: {
+          cardOrderIds: previousCardOrderIds.map((id) => new ObjectId(id)),
+          updatedAt: Date.now(),
+        },
+      }
+    : {
+        $addToSet: { cardOrderIds: new ObjectId(cardId) },
+        $set: { updatedAt: Date.now() },
+      };
+
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(columnId), _destroy: false },
+    updateData,
+    { returnDocument: "after" }
+  );
+};
+
 const dragCardBetweenColumn = async (
   oldColumnId,
   oldCardOrderIds,
@@ -90,10 +127,57 @@ const dragCardBetweenColumn = async (
   return updatedNewColumn;
 };
 
-const archiveCard = async (columnId, data) => {
+const archiveCard = async (columnId, data, archiveData) => {
+  const column = await findOneById(columnId);
   const updatedColumn = await pullCardOrderIds(columnId, data.cardId);
-  await cardModel.deleteOneById(data.cardId);
+  await cardModel.archiveOneById(data.cardId, {
+    archivedBy: archiveData.archivedBy,
+    archiveType: "card",
+    previousColumnId: columnId.toString(),
+    previousCardOrderIds: column?.cardOrderIds || [],
+  });
   return updatedColumn;
+};
+
+const archiveOneById = async (columnId, archiveData) => {
+  const updatedColumn = await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(columnId), _destroy: false },
+    {
+      $set: {
+        _destroy: true,
+        updatedAt: Date.now(),
+        archivedAt: Date.now(),
+        archivedBy: archiveData.archivedBy || null,
+        archiveType: archiveData.archiveType || "column",
+        previousBoardColumnOrderIds: archiveData.previousBoardColumnOrderIds || [],
+      },
+    },
+    { returnDocument: "after" }
+  );
+
+  await cardModel.archiveCardsByColumnId(columnId, {
+    archivedBy: archiveData.archivedBy,
+    archiveType: "column",
+  });
+
+  return updatedColumn;
+};
+
+const restoreOneById = async (columnId) => {
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(columnId), _destroy: true },
+    {
+      $set: {
+        _destroy: false,
+        updatedAt: Date.now(),
+        archivedAt: null,
+        archivedBy: null,
+        archiveType: null,
+        previousBoardColumnOrderIds: [],
+      },
+    },
+    { returnDocument: "after" }
+  );
 };
 
 const deleteOneById = async (columnId) => {
@@ -111,10 +195,14 @@ export const columnModel = {
   COLUMN_COLLECTION_SCHEMA,
   createNew,
   findOneById,
+  findArchivedByBoardId,
   updateCardOrderIds,
   pullCardOrderIds,
   pushCardOrderIds,
+  restoreCardOrderIds,
   dragCardBetweenColumn,
   archiveCard,
+  archiveOneById,
+  restoreOneById,
   deleteOneById,
 };

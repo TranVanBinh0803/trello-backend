@@ -1,7 +1,7 @@
 import express from "express";
 import { boardController } from "~/controllers/boardController";
 import { asyncHandler } from "~/middlewares/errorHandlingMiddleware";
-import { verifyToken } from "~/middlewares/authMiddleware";
+import { optionalVerifyToken, verifyToken } from "~/middlewares/authMiddleware";
 import { boardValidation } from "~/validations/boardValidation";
 import upload from "~/utils/configMulter";
 
@@ -14,6 +14,15 @@ Router.route("/").post(
 );
 
 Router.route("/").get(verifyToken, asyncHandler(boardController.getMyBoards));
+
+Router.route("/archived").get(
+  verifyToken,
+  asyncHandler(boardController.getArchivedBoards)
+);
+
+Router.route("/vnpay-return").get(
+  asyncHandler(boardController.handleVnpayPrivateUpgradeReturn)
+);
 
 Router.route("/import-template").get(
   verifyToken,
@@ -32,8 +41,38 @@ Router.route("/:id/invitations").post(
   asyncHandler(boardController.inviteMember)
 );
 
+Router.route("/:id/members/me").delete(
+  verifyToken,
+  asyncHandler(boardController.leaveBoard)
+);
+
+Router.route("/:id/archive").delete(
+  verifyToken,
+  asyncHandler(boardController.archiveBoard)
+);
+
+Router.route("/:id/private-upgrade-payment").post(
+  verifyToken,
+  asyncHandler(boardController.createPrivateUpgradePayment)
+);
+
+Router.route("/:id/restore").patch(
+  verifyToken,
+  asyncHandler(boardController.restoreBoard)
+);
+
+Router.route("/:id/archived-items").get(
+  verifyToken,
+  asyncHandler(boardController.getArchivedItems)
+);
+
+Router.route("/:id/columns/:columnId/restore").patch(
+  verifyToken,
+  asyncHandler(boardController.restoreColumn)
+);
+
 Router.route("/:id")
-  .get(verifyToken, asyncHandler(boardController.getDetails))
+  .get(optionalVerifyToken, asyncHandler(boardController.getDetails))
   .patch(
     boardValidation.dragColumn,
     verifyToken,

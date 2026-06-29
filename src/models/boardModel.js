@@ -29,6 +29,12 @@ const BOARD_COLLECTION_SCHEMA = Joi.object({
     .default([]),
   createdAt: Joi.date().timestamp("javascript").default(Date.now),
   updatedAt: Joi.date().timestamp("javascript").default(null),
+  archivedAt: Joi.date().timestamp("javascript").allow(null).default(null),
+  archivedBy: Joi.string().allow(null).default(null),
+  archiveType: Joi.string().allow(null).default(null),
+  previousColumnOrderIds: Joi.array()
+    .items(OBJECT_ID_SCHEMA)
+    .default([]),
   _destroy: Joi.boolean().default(false),
 });
 
@@ -69,6 +75,29 @@ const findByMemberId = async (memberId) => {
     .toArray();
 };
 
+const findArchivedByMemberId = async (memberId) => {
+  return await getCollection()
+    .find({
+      memberIds: new ObjectId(memberId),
+      _destroy: true,
+    })
+    .project({
+      title: 1,
+      description: 1,
+      type: 1,
+      ownerIds: 1,
+      memberIds: 1,
+      columnOrderIds: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      archivedAt: 1,
+      archivedBy: 1,
+      archiveType: 1,
+    })
+    .sort({ archivedAt: -1, updatedAt: -1 })
+    .toArray();
+};
+
 const getDetails = async (id) => {
   const result = await getCollection()
     .aggregate([
@@ -76,16 +105,30 @@ const getDetails = async (id) => {
       {
         $lookup: {
           from: columnModel.COLUMN_COLLECTION_NAME,
-          localField: "_id",
-          foreignField: "boardId",
+          let: { boardId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$boardId", "$$boardId"] },
+                _destroy: false,
+              },
+            },
+          ],
           as: "columns",
         },
       },
       {
         $lookup: {
           from: cardModel.CARD_COLLECTION_NAME,
-          localField: "_id",
-          foreignField: "boardId",
+          let: { boardId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$boardId", "$$boardId"] },
+                _destroy: false,
+              },
+            },
+          ],
           as: "cards",
         },
       },
@@ -126,7 +169,29 @@ const dragColumn = async (boardId, newColumnOrderIds) => {
   );
 };
 
-const archiveColumn = async (boardId, data) => {
+const restoreColumnOrderIds = async (boardId, previousColumnOrderIds, columnId) => {
+  const hasPreviousOrder = previousColumnOrderIds?.length;
+  const updateData = hasPreviousOrder
+    ? {
+        $set: {
+          columnOrderIds: previousColumnOrderIds.map((id) => new ObjectId(id)),
+          updatedAt: Date.now(),
+        },
+      }
+    : {
+        $addToSet: { columnOrderIds: new ObjectId(columnId) },
+        $set: { updatedAt: Date.now() },
+      };
+
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(boardId), _destroy: false },
+    updateData,
+    { returnDocument: "after" }
+  );
+};
+
+const archiveColumn = async (boardId, data, archiveData) => {
+  const board = await findOneById(boardId);
   const updatedBoard = await getCollection().findOneAndUpdate(
     { _id: new ObjectId(boardId) },
     {
@@ -135,8 +200,11 @@ const archiveColumn = async (boardId, data) => {
     },
     { returnDocument: "after" }
   );
-  await columnModel.deleteOneById(data.columnId);
-  await cardModel.removeCardsByColumnId(data.columnId);
+  await columnModel.archiveOneById(data.columnId, {
+    archivedBy: archiveData.archivedBy,
+    archiveType: "column",
+    previousBoardColumnOrderIds: board?.columnOrderIds || [],
+  });
   return updatedBoard;
 };
 
@@ -151,15 +219,87 @@ const addMember = async (boardId, userId) => {
   );
 };
 
+const removeMember = async (boardId, userId) => {
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(boardId), _destroy: false },
+    {
+      $pull: { memberIds: new ObjectId(userId) },
+      $set: { updatedAt: Date.now() },
+    },
+    { returnDocument: "after" }
+  );
+};
+
+const updateType = async (boardId, type, updateData = {}) => {
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(boardId), _destroy: false },
+    {
+      $set: {
+        type,
+        ...updateData,
+        updatedAt: Date.now(),
+      },
+    },
+    { returnDocument: "after" }
+  );
+};
+
+const archiveBoard = async (boardId, archiveData = {}) => {
+  const board = await findOneById(boardId);
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(boardId), _destroy: false },
+    {
+      $set: {
+        _destroy: true,
+        updatedAt: Date.now(),
+        archivedAt: Date.now(),
+        archivedBy: archiveData.archivedBy || null,
+        archiveType: "board",
+        previousColumnOrderIds: board?.columnOrderIds || [],
+      },
+    },
+    { returnDocument: "after" }
+  );
+};
+
+const restoreBoard = async (boardId) => {
+  const board = await findOneById(boardId);
+  const columnOrderIds = board?.previousColumnOrderIds?.length
+    ? board.previousColumnOrderIds.map((id) => new ObjectId(id))
+    : board?.columnOrderIds || [];
+
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(boardId), _destroy: true },
+    {
+      $set: {
+        _destroy: false,
+        updatedAt: Date.now(),
+        archivedAt: null,
+        archivedBy: null,
+        archiveType: null,
+        previousColumnOrderIds: [],
+        columnOrderIds,
+      },
+    },
+    { returnDocument: "after" }
+  );
+};
+
 export const boardModel = {
   BOARD_COLLECTION_NAME,
   BOARD_COLLECTION_SCHEMA,
   createNew,
   findOneById,
   findByMemberId,
+  findArchivedByMemberId,
   getDetails,
   updateColumnOrderIds,
   dragColumn,
+  restoreColumnOrderIds,
   archiveColumn,
   addMember,
+  removeMember,
+  updateType,
+  archiveBoard,
+  restoreBoard,
 };

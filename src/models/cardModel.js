@@ -74,6 +74,13 @@ const CARD_COLLECTION_SCHEMA = Joi.object({
   activities: Joi.array().items(ACTIVITY_SCHEMA).default([]),
   createdAt: Joi.date().timestamp("javascript").default(Date.now),
   updatedAt: Joi.date().timestamp("javascript").default(null),
+  archivedAt: Joi.date().timestamp("javascript").allow(null).default(null),
+  archivedBy: Joi.string().allow(null).default(null),
+  archiveType: Joi.string().allow(null).default(null),
+  previousColumnId: Joi.string().allow(null).default(null),
+  previousCardOrderIds: Joi.array()
+    .items(Joi.string().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE))
+    .default([]),
   _destroy: Joi.boolean().default(false),
 });
 
@@ -119,6 +126,17 @@ const generatePlaceholderCard = async (data) => {
 
 const findOneById = async (id) => {
   return await getCollection().findOne({ _id: new ObjectId(id) });
+};
+
+const findArchivedByBoardId = async (boardId) => {
+  return await getCollection()
+    .find({
+      boardId: new ObjectId(boardId),
+      _destroy: true,
+      archiveType: "card",
+    })
+    .sort({ archivedAt: -1, updatedAt: -1 })
+    .toArray();
 };
 
 const update = async (cardId, updateData) => {
@@ -284,11 +302,85 @@ const removeCardsByColumnId = async (columnId) => {
   return await getCollection().deleteMany({ columnId: new ObjectId(columnId) });
 };
 
+const archiveOneById = async (cardId, archiveData) => {
+  const updateData = {
+    _destroy: true,
+    updatedAt: Date.now(),
+    archivedAt: Date.now(),
+    archivedBy: archiveData.archivedBy || null,
+    archiveType: archiveData.archiveType || "card",
+    previousColumnId: archiveData.previousColumnId || null,
+    previousCardOrderIds: archiveData.previousCardOrderIds || [],
+  };
+
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(cardId), _destroy: false },
+    { $set: updateData },
+    { returnDocument: "after" }
+  );
+};
+
+const archiveCardsByColumnId = async (columnId, archiveData) => {
+  return await getCollection().updateMany(
+    { columnId: new ObjectId(columnId), _destroy: false },
+    {
+      $set: {
+        _destroy: true,
+        updatedAt: Date.now(),
+        archivedAt: Date.now(),
+        archivedBy: archiveData.archivedBy || null,
+        archiveType: archiveData.archiveType || "column",
+        previousColumnId: columnId.toString(),
+      },
+    }
+  );
+};
+
+const restoreOneById = async (cardId, columnId) => {
+  return await getCollection().findOneAndUpdate(
+    { _id: new ObjectId(cardId), _destroy: true },
+    {
+      $set: {
+        _destroy: false,
+        columnId: new ObjectId(columnId),
+        updatedAt: Date.now(),
+        archivedAt: null,
+        archivedBy: null,
+        archiveType: null,
+        previousColumnId: null,
+        previousCardOrderIds: [],
+      },
+    },
+    { returnDocument: "after" }
+  );
+};
+
+const restoreCardsByColumnId = async (columnId) => {
+  return await getCollection().updateMany(
+    {
+      columnId: new ObjectId(columnId),
+      _destroy: true,
+      archiveType: "column",
+    },
+    {
+      $set: {
+        _destroy: false,
+        updatedAt: Date.now(),
+        archivedAt: null,
+        archivedBy: null,
+        archiveType: null,
+        previousColumnId: null,
+      },
+    }
+  );
+};
+
 export const cardModel = {
   CARD_COLLECTION_NAME,
   CARD_COLLECTION_SCHEMA,
   createNew,
   findOneById,
+  findArchivedByBoardId,
   update,
   addComment,
   deleteComment,
@@ -298,6 +390,10 @@ export const cardModel = {
   generatePlaceholderCard,
   deleteOneById,
   removeCardsByColumnId,
+  archiveOneById,
+  archiveCardsByColumnId,
+  restoreOneById,
+  restoreCardsByColumnId,
   addAttachment,
   updateAttachment,
   deleteAttachment,

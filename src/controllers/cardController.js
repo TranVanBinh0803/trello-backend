@@ -13,7 +13,7 @@ const createNew = async (req, res) => {
 
 const getDetails = async (req, res) => {
   const cardId = req.params.id;
-  const card = await cardService.getDetails(cardId);
+  const card = await cardService.getDetails(cardId, req.user?._id);
   res
     .status(StatusCodes.OK)
     .json(new ApiResponse(StatusCodes.OK, "Get detail card successfully", card));
@@ -78,7 +78,7 @@ const deleteComment = async (req, res) => {
 const getComments = async (req, res) => {
   const cardId = req.params.id;
 
-  const comments = await cardService.getComments(cardId);
+  const comments = await cardService.getComments(cardId, req.user?._id);
   res
     .status(StatusCodes.OK)
     .json(new ApiResponse(StatusCodes.OK, "Get comments successfully", comments));
@@ -88,7 +88,11 @@ const getCommentById = async (req, res) => {
   const cardId = req.params.cardId;
   const commentId = req.params.commentId;
 
-  const comment = await cardService.getCommentById(cardId, commentId);
+  const comment = await cardService.getCommentById(
+    cardId,
+    commentId,
+    req.user?._id
+  );
   res
     .status(StatusCodes.OK)
     .json(new ApiResponse(StatusCodes.OK, "Get comment successfully", comment));

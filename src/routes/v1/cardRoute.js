@@ -1,7 +1,7 @@
 import express from "express";
 import { cardController } from "~/controllers/cardController";
 import { asyncHandler } from "~/middlewares/errorHandlingMiddleware";
-import { verifyToken } from "~/middlewares/authMiddleware";
+import { optionalVerifyToken, verifyToken } from "~/middlewares/authMiddleware";
 import upload from "~/utils/configMulter";
 import { cardValidation } from "~/validations/cardValidation";
 
@@ -14,15 +14,18 @@ Router.route("/").post(
   asyncHandler(cardController.createNew)
 );
 Router.route("/:id").patch(verifyToken, asyncHandler(cardController.update));
-Router.route("/:id").get(verifyToken, asyncHandler(cardController.getDetails));
+Router.route("/:id").get(
+  optionalVerifyToken,
+  asyncHandler(cardController.getDetails)
+);
 
 // Comment routes
 Router.route("/:id/comments")
-  .get(verifyToken, asyncHandler(cardController.getComments))
+  .get(optionalVerifyToken, asyncHandler(cardController.getComments))
   .post(verifyToken, asyncHandler(cardController.addComment));
 
 Router.route("/:cardId/comments/:commentId")
-  .get(verifyToken, asyncHandler(cardController.getCommentById))
+  .get(optionalVerifyToken, asyncHandler(cardController.getCommentById))
   .patch(verifyToken, asyncHandler(cardController.updateComment))
   .delete(verifyToken, asyncHandler(cardController.deleteComment));
 
@@ -31,6 +34,8 @@ Router.route("/:cardId/attachments").post(
   upload.single("file"),
   asyncHandler(cardController.addAttachment)
 );
+
+// Attachment routes
 Router.route("/:cardId/attachments/:attachmentId")
   .patch(verifyToken, asyncHandler(cardController.updateAttachment))
   .delete(verifyToken, asyncHandler(cardController.deleteAttachment));

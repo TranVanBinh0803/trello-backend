@@ -3,7 +3,7 @@ import { columnService } from "~/services/columnService";
 import { ApiResponse } from "~/utils/types";
 
 const createNew = async (req, res) => {
-  const createColumn = await columnService.createNew(req.body);
+  const createColumn = await columnService.createNew(req.body, req.user?._id);
   res
     .status(StatusCodes.CREATED)
     .json(
@@ -19,7 +19,11 @@ const dragCard = async (req, res) => {
   const columnId = req.params.id;
   const { cardOrderIds } = req.body;
 
-  const updatedColumn = await columnService.dragCard(columnId, cardOrderIds);
+  const updatedColumn = await columnService.dragCard(
+    columnId,
+    cardOrderIds,
+    req.user?._id
+  );
   res
     .status(StatusCodes.OK)
     .json(
@@ -40,7 +44,8 @@ const dragCardBetweenColumn = async (req, res) => {
     oldCardOrderIds,
     newColumnId,
     newCardOrderIds,
-    cardId
+    cardId,
+    req.user?._id
   );
   res
     .status(StatusCodes.OK)
@@ -56,11 +61,30 @@ const dragCardBetweenColumn = async (req, res) => {
 const archiveCard = async (req, res) => {
   const columnId = req.params.id;
   const cardId = req.body;
-  const updatedColumn = await columnService.archiveCard(columnId, cardId);
+  const updatedColumn = await columnService.archiveCard(
+    columnId,
+    cardId,
+    req.user?._id
+  );
   res
     .status(StatusCodes.OK)
     .json(
       new ApiResponse(StatusCodes.OK, "Card archive successfully", updatedColumn)
+    );
+};
+
+const restoreCard = async (req, res) => {
+  const columnId = req.params.id;
+  const cardId = req.params.cardId;
+  const updatedColumn = await columnService.restoreCard(
+    columnId,
+    cardId,
+    req.user?._id
+  );
+  res
+    .status(StatusCodes.OK)
+    .json(
+      new ApiResponse(StatusCodes.OK, "Restore card successfully", updatedColumn)
     );
 };
 
@@ -69,4 +93,5 @@ export const columnController = {
   dragCard,
   dragCardBetweenColumn,
   archiveCard,
+  restoreCard,
 };
