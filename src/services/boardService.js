@@ -132,7 +132,7 @@ const createPrivateUpgradePayment = async (boardId, userId, clientIp) => {
 
   await boardPrivateUpgradePaymentModel.createNew({
     boardId,
-    userId,
+    userId: userId.toString(),
     txnRef,
     amount: vnpayConfig.amount,
   });

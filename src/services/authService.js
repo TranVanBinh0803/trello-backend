@@ -36,7 +36,7 @@ const forgotPassword = async (reqBody) => {
   }
 
   const otp = crypto.randomInt(100000, 1000000).toString();
-  const expiresAt = Date.now() + 1000 * 60 * 15;
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 15);
   await passwordResetOtpModel.invalidatePendingByEmail(email);
   await passwordResetOtpModel.createNew({
     userId: user._id.toString(),

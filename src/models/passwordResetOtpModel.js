@@ -40,11 +40,11 @@ const invalidatePendingByEmail = async (email) => {
     {
       email,
       usedAt: null,
-      expiresAt: { $gt: Date.now() },
+      expiresAt: { $gt: new Date() },
     },
     {
       $set: {
-        usedAt: Date.now(),
+        usedAt: new Date(),
         updatedAt: Date.now(),
       },
     }
@@ -56,7 +56,7 @@ const findValidByEmailAndOtp = async (email, otp) => {
     email,
     otp,
     usedAt: null,
-    expiresAt: { $gt: Date.now() },
+    expiresAt: { $gt: new Date() },
   });
 };
 
@@ -65,7 +65,7 @@ const markUsed = async (otpId) => {
     { _id: new ObjectId(otpId) },
     {
       $set: {
-        usedAt: Date.now(),
+        usedAt: new Date(),
         updatedAt: Date.now(),
       },
     },
