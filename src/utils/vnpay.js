@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 const VNPAY_SANDBOX_PAYMENT_URL =
   "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+const VNPAY_TIMEZONE = "Asia/Ho_Chi_Minh";
 
 const sortObject = (input) => {
   const sorted = {};
@@ -16,14 +17,31 @@ const sortObject = (input) => {
 };
 
 const formatDate = (date) => {
-  const pad = (value) => value.toString().padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: VNPAY_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+    .formatToParts(date)
+    .reduce((result, part) => {
+      if (part.type !== "literal") {
+        result[part.type] = part.value;
+      }
+      return result;
+    }, {});
+
   return [
-    date.getFullYear(),
-    pad(date.getMonth() + 1),
-    pad(date.getDate()),
-    pad(date.getHours()),
-    pad(date.getMinutes()),
-    pad(date.getSeconds()),
+    parts.year,
+    parts.month,
+    parts.day,
+    parts.hour === "24" ? "00" : parts.hour,
+    parts.minute,
+    parts.second,
   ].join("");
 };
 
