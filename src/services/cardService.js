@@ -129,7 +129,12 @@ const addComment = async (cardId, reqBody, user) => {
     );
   }
 
-  let updatedCard = await cardModel.addComment(cardId, reqBody);
+  let updatedCard = await cardModel.addComment(cardId, {
+    ...reqBody,
+    authorId: user?._id?.toString() || null,
+    authorName: reqBody.authorName || user?.username,
+    avatar: reqBody.avatar || user?.avatar || null,
+  });
   if (!updatedCard) {
     throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Failed to add comment!");
   }

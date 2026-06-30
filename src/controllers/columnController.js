@@ -1,9 +1,14 @@
 import { StatusCodes } from "http-status-codes";
 import { columnService } from "~/services/columnService";
+import { emitBoardEvent } from "~/sockets/socketServer";
 import { ApiResponse } from "~/utils/types";
 
 const createNew = async (req, res) => {
   const createColumn = await columnService.createNew(req.body, req.user?._id);
+  emitBoardEvent(createColumn.boardId, "board:column-created", {
+    columnId: createColumn._id?.toString(),
+    actorId: req.user?._id?.toString(),
+  });
   res
     .status(StatusCodes.CREATED)
     .json(

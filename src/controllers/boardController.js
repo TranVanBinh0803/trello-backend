@@ -1,5 +1,6 @@
 import { StatusCodes } from "http-status-codes";
 import { boardService } from "~/services/boardService";
+import { emitBoardEvent } from "~/sockets/socketServer";
 import { ApiResponse } from "~/utils/types";
 
 const createNew = async (req, res) => {
@@ -65,6 +66,10 @@ const dragColumn = async (req, res) => {
     columnOrderIds,
     req.user?._id
   );
+  emitBoardEvent(boardId, "board:column-updated", {
+    actorId: req.user?._id?.toString(),
+    columnOrderIds,
+  });
   res
     .status(StatusCodes.OK)
     .json(
@@ -84,6 +89,10 @@ const archiveColumn = async (req, res) => {
     columnId,
     req.user?._id
   );
+  emitBoardEvent(boardId, "board:column-archived", {
+    actorId: req.user?._id?.toString(),
+    columnId: columnId?.columnId,
+  });
   res
     .status(StatusCodes.OK)
     .json(
@@ -171,6 +180,10 @@ const restoreColumn = async (req, res) => {
     columnId,
     req.user?._id
   );
+  emitBoardEvent(boardId, "board:column-restored", {
+    actorId: req.user?._id?.toString(),
+    columnId,
+  });
   res
     .status(StatusCodes.OK)
     .json(

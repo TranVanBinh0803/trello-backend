@@ -7,6 +7,11 @@ const CARD_COLLECTION_NAME = "cards";
 
 const COMMENT_SCHEMA = Joi.object({
   _id: Joi.string().optional(), 
+  authorId: Joi.string()
+    .pattern(OBJECT_ID_RULE)
+    .message(OBJECT_ID_RULE_MESSAGE)
+    .allow(null, "")
+    .optional(),
   authorName: Joi.string().required().min(1).max(100).trim(),
   avatar: Joi.string().uri().allow(null, "").optional(),
   content: Joi.string().required().min(1).max(1000).trim(),
